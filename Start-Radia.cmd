@@ -6,3 +6,4 @@ if not exist ".venv\Scripts\pythonw.exe" (
   exit /b 1
 )
 start "" ".venv\Scripts\pythonw.exe" -m biem_radia.app --project "%~dp0."
+
