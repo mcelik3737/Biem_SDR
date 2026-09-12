@@ -96,6 +96,9 @@ class RadiaApp:
         self.port = tk.StringVar(value="1234")
         self.ppm = tk.StringVar(value="0")
         self.usb_gain = tk.StringVar(value="19")
+        self.receive_mode = tk.StringVar(value="Sabit")
+        self.scan_dwell = tk.StringVar(value="1.0")
+        self.scan_release = tk.StringVar(value="1.0")
         self.receiver_config_path = self.archive.root / "receiver.json"
         self.receiver_fields = {
             "source": self.source,
@@ -103,6 +106,9 @@ class RadiaApp:
             "port": self.port,
             "ppm": self.ppm,
             "usb_gain": self.usb_gain,
+            "receive_mode": self.receive_mode,
+            "scan_dwell": self.scan_dwell,
+            "scan_release": self.scan_release,
         }
         if self.receiver_config_path.exists():
             try:
@@ -123,6 +129,15 @@ class RadiaApp:
         self.start_button.pack(side="left", padx=(20, 6), pady=(16, 0))
         self.stop_button = ttk.Button(row, text="■ Durdur", command=self.receiver.stop)
         self.stop_button.pack(side="left", pady=(16, 0))
+
+        scan_row = ttk.Frame(setup)
+        scan_row.pack(fill="x", pady=(8, 0))
+        self._field(scan_row, "Alım biçimi", self.receive_mode, 12, ["Sabit", "Tarama"])
+        self._field(scan_row, "Kanalı dinle / sn", self.scan_dwell, 12)
+        self._field(scan_row, "Eşik altı bekle / sn", self.scan_release, 14)
+        ttk.Label(
+            scan_row, text="Tarama: etkin kanallar • Eşik: kanalın Squelch / dBFS değeri"
+        ).pack(side="left", padx=12, pady=(16, 0))
 
         mode_row = ttk.Frame(setup)
         mode_row.pack(fill="x", pady=(8, 0))
@@ -355,6 +370,9 @@ class RadiaApp:
                 port,
                 ppm,
                 usb_gain,
+                scan=self.receive_mode.get() == "Tarama",
+                scan_dwell=float(self.scan_dwell.get()),
+                scan_release=float(self.scan_release.get()),
             )
             self.start_button.configure(state="disabled")
         except (ValueError, OSError) as exc:
@@ -508,6 +526,8 @@ class RadiaApp:
                     self.levels.set("Alım kapalı • Etkin kayıt yok")
                     if message["reason"] != "error":
                         self.status.set("Alım durduruldu • Kayıtlar arşivde")
+                    self.refresh_archive()
+                elif kind == "archive_changed":
                     self.refresh_archive()
                 try:
                     (self.archive.root / "receiver-status.json").write_text(

@@ -41,6 +41,8 @@ Açık kayıt `.wav.part` uzantısıyla tutulur; normal durdurma veya yakalanan 
 
 ## Eşzamanlı kanallar ve Ethernet
 
+**Alım biçimi → Tarama**, etkin kanalları liste sırasıyla gezer; uzak frekanslar da eklenebilir. Kanalın **Squelch / dBFS** eşiği aşılınca orada kalır; sinyal **Eşik altı bekle / sn** boyunca düşük kalınca devam eder. **Kanalı dinle / sn** boş kanaldaki gözlem süresidir. Kanal değişimi ve DMR çözücüsünün açılıp kapanması ek zaman alır. Başka kanallarda başlayan konuşmalar kaçırılabilir. **Sabit** modu önceki eşzamanlı bant içi alımdır. Ayar değişikliklerini alımı durdurup kaydederek uygulayın.
+
 Listede 1–8 analog kanal tanımlanabilir. Hepsi aynı 960 kS/s I/Q akışından çözülür. Kanallar alıcının güvenli bant sınırına sığmıyorsa başlatma reddedilir. Aynı USB tuner ile birbirinden uzak VHF ve UHF kanallarını eşzamanlı almak mümkün değildir; ayrı alıcı gerekir. İki eşzamanlı kanal sentetik sinyalle test edildi; sekiz kanal için donanım performans kabul testi bekliyor.
 
 `rtl_tcp` kaynağı Ethernet üzerinden **RTL-SDR I/Q** alır. Kaynak PC'de rtl_tcp sunucusu çalışmalı; adres ve port girilmelidir. Bu protokol Hytera repeater ses/veri protokolü değildir. rtl_tcp bağlantısı kimlik doğrulama/şifreleme sağlamaz; uygulama bir ağ dinleme portu açmaz. Yerel protokol test sunucusunda başlık, komutlar, parçalı veri ve bağlantı kopması test edildi; gerçek Ethernet cihazı testi henüz yapılmadı.

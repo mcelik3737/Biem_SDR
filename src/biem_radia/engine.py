@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import threading
 import time
@@ -11,6 +12,7 @@ from .dmr import DmrBackend, DmrDiscriminator
 from .dsp import FMDemodulator
 from .models import SAMPLE_RATE, Channel, center_for
 from .recorder import CallRecorder
+from .scanner import ScanGate
 from .sources import TCPSource, USBSource
 from .storage import Archive
 
@@ -44,16 +46,30 @@ class Receiver:
         port: int = 1234,
         ppm: int = 0,
         usb_gain: float = 19,
+        scan: bool = False,
+        scan_dwell: float = 1.0,
+        scan_release: float = 1.0,
     ):
         if self.running:
             raise ValueError("Alım zaten çalışıyor.")
-        center = center_for(channels)
+        if not all(math.isfinite(v) and 0.3 <= v <= 10 for v in (scan_dwell, scan_release)):
+            raise ValueError("Tarama beklemeleri 0,3–10 saniye olmalı.")
+        if scan:
+            if not 1 <= len(channels) <= 8 or len({c.name.casefold() for c in channels}) != len(
+                channels
+            ):
+                raise ValueError("Tarama için 1–8 farklı adlı etkin kanal gerekli.")
+            center = center_for([channels[0]])
+        else:
+            center = center_for(channels)
         if source_kind not in ("USB", "rtl_tcp"):
             raise ValueError("Geçersiz kaynak.")
         self.stop_event.clear()
         self.thread = threading.Thread(
-            target=self._run,
-            args=(channels, dll, source_kind, host, port, ppm, center, usb_gain),
+            target=self._scan if scan else self._run,
+            args=(channels, dll, source_kind, host, port, ppm, scan_dwell, usb_gain, scan_release)
+            if scan
+            else (channels, dll, source_kind, host, port, ppm, center, usb_gain),
             daemon=True,
         )
         self.thread.start()
@@ -61,7 +77,28 @@ class Receiver:
     def stop(self):
         self.stop_event.set()
 
-    def _run(self, channels, dll, source_kind, host, port, ppm, center, usb_gain):
+    def _scan(self, channels, dll, source_kind, host, port, ppm, dwell, usb_gain, release):
+        index = 0
+        reason = "stopped"
+        while not self.stop_event.is_set():
+            channel = channels[index]
+            reason = self._run(
+                [channel],
+                dll,
+                source_kind,
+                host,
+                port,
+                ppm,
+                center_for([channel]),
+                usb_gain,
+                ScanGate(channel.squelch_db, dwell, release),
+            )
+            if reason == "error":
+                break
+            index = (index + 1) % len(channels)
+        self.publish("stopped", reason="error" if reason == "error" else "stopped")
+
+    def _run(self, channels, dll, source_kind, host, port, ppm, center, usb_gain, gate=None):
         source = None
         recorders: list[CallRecorder] = []
         digital: dict[str, tuple[DmrDiscriminator, DmrBackend]] = {}
@@ -93,7 +130,9 @@ class Receiver:
             )
             self.publish(
                 "status",
-                text="ALIM HAZIR • DMR senkronu bekleniyor"
+                text=f"TARAMA • {channels[0].name} • {channels[0].frequency_hz / 1e6:.5f} MHz"
+                if gate is not None
+                else "ALIM HAZIR • DMR senkronu bekleniyor"
                 if digital
                 else "ALIM HAZIR • Analog FM",
             )
@@ -128,6 +167,17 @@ class Receiver:
                 if time.monotonic() - last_update >= 0.2:
                     self.publish("levels", channels=states)
                     last_update = time.monotonic()
+                if gate is not None:
+                    was_held = gate.held
+                    move_on = gate.advance(states[0]["level"], len(iq) / SAMPLE_RATE)
+                    if gate.held and not was_held:
+                        self.publish(
+                            "status",
+                            text=f"KANALDA BEKLİYOR • {channels[0].name} • Eşik {gate.threshold:g} dBFS",
+                        )
+                    if move_on:
+                        reason = "scan"
+                        break
         except Exception as exc:
             reason = "error"
             logging.exception("Receiver failed")
@@ -162,4 +212,7 @@ class Receiver:
                 self.archive.event("INFO", f"Alım sonlandı: {reason}")
             except Exception:
                 logging.exception("Cannot write final event")
-            self.publish("stopped", reason=reason)
+            self.publish("archive_changed")
+            if gate is None:
+                self.publish("stopped", reason=reason)
+        return reason
