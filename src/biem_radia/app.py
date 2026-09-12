@@ -7,11 +7,14 @@ import math
 import os
 import queue
 import tkinter as tk
+import wave
 import winsound
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
+
+import numpy as np
 
 from .engine import Receiver
 from .models import Channel
@@ -451,11 +454,35 @@ class RadiaApp:
         if not selected:
             return
         try:
+            path = self.archive.audio_path(selected[0])
+            with self.archive.connect() as db:
+                call = db.execute("SELECT source FROM calls WHERE id=?", (selected[0],)).fetchone()
+            if call is not None and call["source"] == "DMR/DSD-FME":
+                # Boost listening copies; keep the original decoder recording intact.
+                winsound.PlaySound(None, 0)
+                with wave.open(str(path), "rb") as wav:
+                    params = wav.getparams()
+                    if params.sampwidth != 2:
+                        raise ValueError("DMR dinleme sesi için 16 bit WAV gerekli.")
+                    samples = np.frombuffer(wav.readframes(wav.getnframes()), dtype="<i2")
+                boosted = samples.astype(np.float64) * 2.0
+                # Soft knee above 90% full scale prevents integer clipping.
+                magnitude = np.abs(boosted) / 32768.0
+                limited = np.where(
+                    magnitude <= 0.9,
+                    magnitude,
+                    0.9 + 0.1 * (1.0 - np.exp(-np.maximum(magnitude - 0.9, 0) / 0.1)),
+                )
+                pcm = (np.sign(boosted) * limited * 32767).astype("<i2")
+                path = self.archive.root / "dmr-playback.wav"
+                with wave.open(str(path), "wb") as wav:
+                    wav.setparams(params)
+                    wav.writeframes(pcm.tobytes())
             winsound.PlaySound(
-                str(self.archive.audio_path(selected[0])),
+                str(path),
                 winsound.SND_FILENAME | winsound.SND_ASYNC,
             )
-        except (RuntimeError, ValueError) as exc:
+        except (RuntimeError, ValueError, OSError, wave.Error) as exc:
             messagebox.showerror("Dinleme", str(exc))
 
     def poll(self):

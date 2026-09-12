@@ -6,6 +6,8 @@ I/Q akışı ayrı DMR discriminator yolundan 48 kHz S16LE olarak yerel DSD-FME 
 
 ## Doğrulama ve sınırlar
 
+Arşivden DMR dinlerken ses +6 dB yükseltilir; yüksek tepelere yumuşak sınırlama uygulanır. Dinleme kopyası `data/dmr-playback.wav` dosyasına yazılır. Özgün kayıt ve RF/discriminator kazancı değiştirilmez.
+
 - Analog ses kullanıcı tarafından doğrulandı. Gerçek RF'den yakalanıp frekans sapması düzeltilmiş DMR kaydının anlaşılır olduğu da kullanıcı tarafından doğrulandı. Kaynak ID, hedef grup ve color code çözüldü. Kalıcı tuner düzeltmesiyle canlı alımdan arşive kayıt testi de 2026-09-12 tarihinde geçti; iki tamamlanmış WAV ve isim eşleştirmesi doğrulandı.
 - İki slotun dosya ve metadata ayrımı otomatik testlerle doğrulandı; aynı anda iki gerçek RF slotu kabul testi bekliyor.
 - DSD-FME bazı simplex/DMO olaylarında fiziksel slot bildirmez. Eşleşen çözücü günlüğü varsa ekranda `1 (çözücü)` gösterilir; bu değer ayrı `decoder_slot` alanında tutulur. Fiziksel `slot` boş kalır ve slot filtresi bu çağrıları içermez. Günlük eşleşmezse `—` gösterilir; telsizde ayarlanmış değerden tahmin edilmez.
