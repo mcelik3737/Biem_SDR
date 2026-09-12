@@ -25,5 +25,6 @@ scripts = (
     + "</script>"
 )
 html = html.replace("</body>", scripts + "\n</body>")
+html = "\n".join(line.rstrip() for line in html.splitlines()) + "\n"
 (root / "BIEM_Radia_Arayuz_Onizleme.html").write_text(html, encoding="utf-8")
 print("Offline preview generated.")
