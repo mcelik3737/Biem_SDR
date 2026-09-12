@@ -49,10 +49,11 @@ Analog FM akışında otomatik DMR ID, grup veya slot bulunmaz. Veritabanındaki
 
 Sonraki aşama için gerçek telsiz/repeater modeli, analog/DMR modu, izinli test kanalı ve üreticinin ses/olay arayüz belgesi gerekir. Dijital metadata gerçek çözücüden gelmeden kimlik ataması yapılmayacak.
 
-Bu kapsamın (DMR dijital çözme, Hytera repeater network entegrasyonu, Qt6
-masaüstü GUI) ayrı ve tamamlayıcı bir geliştirme hattı `legacy/cpp-prototype/`
-altında sürüyor (C++/Qt) — bkz. o klasördeki `README.md`. İki hat da aktif;
-biri diğerinin yerine geçmiyor.
+Bu kapsam (DMR dijital çözme, Hytera repeater network entegrasyonu, Qt6
+masaüstü GUI) ayrı, bağımsız bir repoda (C++/Qt) tamamlayıcı bir hat
+olarak sürüyor: [mcelik3737/Biem_SDR_V1](https://github.com/mcelik3737/Biem_SDR_V1).
+İki teknoloji/araç karışmasın diye bu repodan tamamen ayrıldı — burada bu
+repoyla dosya/dal paylaşmıyor.
 
 ## Geliştirme
 
