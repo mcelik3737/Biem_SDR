@@ -1,4 +1,13 @@
-# BİEM Radia Dispatcher
+# BİEM Radia Dispatcher (C++/Qt track)
+
+> **Bu klasörün konumu hakkında:** repo kökü artık `src/biem_radia/`'daki
+> Python tabanlı, donanımda doğrulanmış analog-FM MVP'yi barındırıyor.
+> Bu C++ ağacı ona rakip değil, **tamamlayıcı, daha geniş kapsamlı bir
+> ikinci hat**: DMR dijital çözme (FEC: Hamming/Golay/BPTC), Hytera
+> repeater network entegrasyonu ve Qt6 masaüstü arayüzünü hedefliyor —
+> bunların hiçbiri Python MVP'sinin kapsamında değil. İkisi de aktif
+> tutuluyor; analog-only hızlı kullanım için repo kökündeki `README.md`'ye
+> bakın.
 
 Tek PC üzerinde çalışan, UHF/VHF telsiz trafiğini (analog FM + DMR dijital)
 kaydeden, konuşma bazında loglayan ve tarih/başlık/ID/grup/slot kriterleriyle

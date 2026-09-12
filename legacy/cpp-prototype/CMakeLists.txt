@@ -25,6 +25,18 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # installed (see docs/BUILD_WINDOWS.md).
 
 find_package(SQLite3 REQUIRED)
+# The imported target name for SQLite3 was renamed between CMake versions
+# (older FindSQLite3 modules create SQLite::SQLite3; newer ones create
+# SQLite3::SQLite3 and mark the old name deprecated - CMake 4.x on Windows
+# vs 3.28 on Linux disagreed on this during development). Pick whichever
+# actually exists instead of hardcoding one, so configure is clean on both.
+if(TARGET SQLite3::SQLite3)
+    set(BIEM_SQLITE3_TARGET SQLite3::SQLite3)
+elseif(TARGET SQLite::SQLite3)
+    set(BIEM_SQLITE3_TARGET SQLite::SQLite3)
+else()
+    message(FATAL_ERROR "SQLite3 was found but neither SQLite3::SQLite3 nor SQLite::SQLite3 exists as a target")
+endif()
 
 find_package(Qt6 QUIET COMPONENTS Core Widgets Multimedia)
 if(Qt6_FOUND)

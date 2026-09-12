@@ -27,7 +27,7 @@ set(BIEM_CORE_SOURCES
 
 add_library(biem_core STATIC ${BIEM_CORE_SOURCES})
 target_include_directories(biem_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(biem_core PUBLIC SQLite::SQLite3)
+target_link_libraries(biem_core PUBLIC ${BIEM_SQLITE3_TARGET})
 target_compile_features(biem_core PUBLIC cxx_std_20)
 
 if(WIN32)
