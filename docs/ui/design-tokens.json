@@ -1,0 +1,100 @@
+{
+  "product": "BIEM Radia",
+  "revision": "Operasyon V2 / 2026-09-12",
+  "units": "Logical CSS px; explicitly convert to Tk points and Windows DPI",
+  "font": {
+    "family": "Segoe UI",
+    "numeric": "Consolas / tabular figures",
+    "pageTitle": 28,
+    "channelTitle": 18,
+    "body": 14,
+    "controls": 13,
+    "table": 12,
+    "secondary": [
+      11,
+      12
+    ]
+  },
+  "layout": {
+    "header": 70,
+    "sidebar": 210,
+    "sidebarCompact": 180,
+    "sidebarIcons": 64,
+    "footer": 30,
+    "pagePadding": [
+      20,
+      26
+    ],
+    "gap": 16,
+    "cardGap": 12,
+    "cardMinWidth": 310,
+    "cardHeightApprox": 200,
+    "detailWidth": [
+      260,
+      310
+    ],
+    "defaultControlMinHeight": 36,
+    "secondaryIconSize": 32,
+    "focusWidth": 3,
+    "logoBox": [
+      140,
+      44
+    ],
+    "radioMarkerHeight": [
+      44,
+      192
+    ]
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32
+  ],
+  "colors": {
+    "background": "#eef2f6",
+    "surface": "#ffffff",
+    "surfaceAlt": "#f6f8fb",
+    "text": "#203045",
+    "muted": "#5c6e83",
+    "border": "#d7e0ea",
+    "brand": "#ac3049",
+    "rail": "#122438",
+    "receive": "#205cb8",
+    "receiveBackground": "#edf4ff",
+    "success": "#176c52",
+    "warning": "#82551a",
+    "recordOrError": "#ad3046"
+  },
+  "responsive": {
+    "below1550": "Selected channel drawer",
+    "below1180": "Two channel columns; map detail below map",
+    "below980": "Accessible icon navigation",
+    "shortViewport": "Reduce decorative spacing; preserve main scroll and bottom controls"
+  },
+  "behavior": {
+    "sampleDataOnly": true,
+    "adminControlIsPreviewFixtureOnly": true,
+    "unknownMetadata": null,
+    "physicalSlotSeparateFromDecoderLane": true,
+    "privateTargetSeparateFromGroup": true,
+    "filterDoesNotChangeAcquisition": true,
+    "muteDoesNotChangeRecording": true,
+    "singleUSBExclusiveOwners": [
+      "radio",
+      "fm",
+      "spectrum"
+    ],
+    "mainConfigLockedDuringAcquisition": true,
+    "archivePlaybackRequiresWindowsAdmin": true,
+    "recordLimitSeconds": 90,
+    "recordLimitGapSeconds": 2,
+    "digitalArchiveDelivery": "At call end",
+    "map": "One last valid point, offline",
+    "mapMarkerAnchor": "bottom center",
+    "logFilter": "new incoming rows only"
+  }
+}
