@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BIEM Radia — Operatör Konsolu / Tasarım önizlemesi</title>
+  <link rel="stylesheet" href="radia.css">
+  <script src="assets/icons.js" defer></script>
+  <script src="radia.js" defer></script>
+</head>
+<body data-theme="operations">
+  <div class="design-bar">
+    <span><b>TASARIM ÖNİZLEMESİ</b><span class="design-note"> · Temsili veriler; alıcıya bağlı değildir.</span></span>
+    <div class="directions" aria-label="Tasarım yönü">
+      <button data-direction="operations" aria-pressed="true">01 <span>Operasyon</span><small>ÖNERİLEN</small></button>
+      <button data-direction="night" aria-pressed="false">02 <span>Gece konsolu</span></button>
+      <button data-direction="review" aria-pressed="false">03 <span>Arşiv odaklı</span></button>
+    </div>
+  </div>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand"><img src="assets/biem-logo.png" alt="Biem Elektronik"><span class="brand-divider"></span><strong>RADIA</strong><span class="product-name">İzleme ve kayıt</span></div>
+      <div class="header-right"><span class="health"><i class="dot green"></i><span id="global-status">Alıcı çalışıyor</span></span><span class="local-time">12 Eylül 2026 <b>14:32:18</b></span><button class="button compact" id="receiver-toggle"></button></div>
+    </header>
+    <aside class="sidebar">
+      <div class="workspace-label">ÇALIŞMA ALANI</div>
+      <div class="workspace-name"><span class="workspace-avatar">DT</span><span><strong>Demo tesis</strong><small>Kontrol merkezi</small></span></div>
+      <nav class="navigation" aria-label="Ana gezinme">
+        <button data-view="live" class="selected"><i data-icon="Radio"></i><span>Canlı izleme</span><b class="nav-count">6</b></button>
+        <button data-view="archive"><i data-icon="Archive"></i><span>Kayıt arşivi</span></button>
+        <button data-view="directory"><i data-icon="Users"></i><span>Kimlik rehberi</span></button>
+        <div class="nav-divider"></div><span class="nav-label">SİSTEM</span>
+        <button data-view="spectrum"><i data-icon="Activity"></i><span>Spektrum</span></button>
+        <button data-view="sources"><i data-icon="Cable"></i><span>Kaynaklar ve ayarlar</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="storage-label"><i data-icon="HardDrive"></i><span>Yerel kayıt alanı</span></div>
+        <div class="storage-track"><span></span></div><div class="storage-caption"><strong>186 GB</strong><span>boş / 500 GB</span></div>
+        <div class="sidebar-note">Örnek kapasite göstergesi</div>
+        <div class="operator"><span class="operator-avatar">OP</span><span><strong>Operatör</strong><small>Yerel oturum</small></span><i data-icon="ChevronDown"></i></div>
+      </div>
+    </aside>
+    <main id="main" tabindex="-1"></main>
+    <footer class="system-footer"><span><i class="dot green"></i><span id="footer-state">USB · RTL-SDR 01</span><span class="footer-divider">|</span><span id="footer-recording">2 çağrı kaydediliyor</span></span><span>Örnek senaryo <span class="footer-divider">|</span> Saatler yerel · UTC+03:00</span></footer>
+  </div>
+  <dialog id="drawer" class="drawer" aria-labelledby="drawer-title"></dialog>
+  <dialog id="confirmation" class="confirmation" aria-labelledby="confirmation-title"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

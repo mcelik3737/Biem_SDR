@@ -1,0 +1,68 @@
+{
+  "product": "BIEM Radia",
+  "defaultDirection": "operations",
+  "units": "CSS px; map to Windows DPI and Tk font points explicitly",
+  "font": {
+    "family": "Segoe UI",
+    "numeric": "Consolas",
+    "pageTitle": 27,
+    "channelTitle": 18,
+    "bodyTarget": 14,
+    "secondaryTarget": 12,
+    "tableTarget": 12
+  },
+  "layout": {
+    "headerHeight": 70,
+    "railWidth": 208,
+    "railCompactWidth": 180,
+    "pagePadding": 24,
+    "sectionGap": 18,
+    "cardGap": 12,
+    "detailWidth": 280,
+    "footerHeight": 30,
+    "cardRadius": 9,
+    "controlRadius": 6,
+    "borderWidth": 1,
+    "logoBox": [134, 42]
+  },
+  "spacing": [4, 8, 12, 16, 24, 32],
+  "light": {
+    "background": "#eef2f6",
+    "surface": "#ffffff",
+    "surfaceAlt": "#f7f9fc",
+    "text": "#1b2c40",
+    "muted": "#627186",
+    "border": "#dce3ec",
+    "brand": "#ad304a",
+    "rail": "#122235",
+    "railText": "#aebed1",
+    "receive": "#215fca",
+    "receiveBackground": "#edf4ff",
+    "success": "#127356",
+    "warning": "#926018",
+    "recordOrError": "#b62e44"
+  },
+  "night": {
+    "background": "#101a29",
+    "surface": "#182637",
+    "surfaceAlt": "#1c2c3f",
+    "text": "#e6eef7",
+    "muted": "#a0afc2",
+    "border": "#304259",
+    "rail": "#0d1623",
+    "receive": "#7eb7fa",
+    "receiveBackground": "#263e5c",
+    "success": "#7dcead",
+    "warning": "#efc27f",
+    "recordOrError": "#f897a5"
+  },
+  "behavior": {
+    "liveFilterDoesNotAffectRecording": true,
+    "monitorMuteDoesNotAffectRecording": true,
+    "retainSelectionAcrossRefresh": true,
+    "unknownMetadata": null,
+    "demoDataMustNeverEnterProduction": true,
+    "spectrumRequiresSourceOwnership": true,
+    "sourceStopRequiresRecorderFinalization": true
+  }
+}
