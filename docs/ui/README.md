@@ -1,47 +1,38 @@
-# BIEM Radia — operatör konsolu tasarım paketi
+# BİEM Radia — Operasyon V2
 
-**Önerilen yön: 01 / Operasyon.** Küçük ve orijinal BIEM logosu, koyu gezinme alanı, açık çalışma yüzeyi, kısa kanal kartları ve seçili çağrı paneli. Öncelik: kimin konuştuğunu, sesin kaydedilip kaydedilmediğini ve ilgili kaydın nerede olduğunu hızlıca anlamak.
+**Güncel tasarım ve Codex uygulama paketi.** Kullanıcının 12 Eylül 2026 birleştirilmiş brifi okundu; açık renkli Operasyon düzeni mevcut Windows uygulamasına göre güncellendi.
 
-Bu paket kullanıcının 12 Eylül 2026 tarihli arayüz talebi için hazırlanmıştır. Çalışan alıcı, DMR çözücü, kayıt motoru, arşiv veritabanı ve Windows başlatma dosyaları değiştirilmez. Buradaki HTML **görsel ve etkileşimli referanstır**; uygulamayı web teknolojisine taşıma kararı değildir.
+**[Tek dosyalık etkileşimli önizlemeyi aç](BIEM_Radia_Arayuz_Onizleme.html)** · internet, kurulum veya SDR gerekmez. Kaynak sürümü `index.html`; üretim: `python docs/ui/build-preview.py`.
 
-## Ekranlar
+## Ana tasarım
 
-| Yön | Kullanım | Yerleşim |
-|---|---|---|
-| **01 Operasyon — önerilen** | Günlük güvenlik / İSG izleme ve ürün demosu | Açık zemin, koyu sol gezinme, kanal kartları + sağda çağrı ayrıntısı, altta son kayıtlar |
-| 02 Gece konsolu | Karanlık kontrol odası, uzun vardiya | Koyu yüzeyler, daha geniş ve büyük kanal kartları; ayrıntı seçildiğinde yan panel |
-| 03 Arşiv odaklı | Kayıt arama ve olay inceleme | Sıcak açık yüzey, zaman çizelgesi, yoğun kayıt tablosu, seçili kaydın dalga biçimi ve oynatıcısı |
+![Canlı izleme](previews/01-operasyon.png)
 
-![01 Operasyon](previews/01-operasyon.png)
+Altı kısa kanal kartı, seçili çağrı, RF kazancı / Tuner AGC ve son tamamlanan kayıtlar. Kullanıcı ayar kutularının arasında çağrı aramak zorunda kalmaz. DMR özel hedef / grup, fiziksel slot / çözücü kanalı, alınan CC / CC filtresi ayrıdır.
 
-![02 Gece konsolu](previews/02-gece-konsolu.png)
+## Diğer ekranlar
 
-![03 Arşiv odaklı](previews/03-arsiv-odakli.png)
+| Önizleme | Amaç |
+|---|---|
+| [Korumalı kayıt arşivi](previews/02-korumali-arsiv.png) | Arama, slot türü, yetkili dinleme, dosya durumu |
+| [Harita](previews/03-harita.png) | Son geçerli tek konum, yaş ve özgün telsiz görseli |
+| [Dijital veri günlüğü](previews/04-dijital-gunluk.png) | Çözücü metni ve yalnız yeni satırlara uygulanan filtre |
+| [Yönetici spektrumu](previews/05-yonetici-spektrumu.png) | Büyük spektrum/şelale, seviye ve zoom kontrolleri |
+| [Kaynaklar](previews/06-kaynaklar.png) | Alıcı, USB envanteri, çevrimdışı Hytera yapılandırması |
+| [1280×920](previews/07-1280x920.png) / [1366×768](previews/08-1366x768.png) | Küçük pencerede kanal düzeni |
 
-## Önizlemeyi açma
+Kimlik rehberi, BİEM ekranı ve üstten açılan FM RADIO da etkileşimli önizlemede bulunur. Üstteki senaryo seçimiyle eksik/meşgul cihaz, özel DMR hedefi, tarama sırası, arşiv hatası ve boş/eski/eksik karo harita durumları incelenebilir. “Yönetici görünümü” **yalnız tasarım durumunu** değiştirir; Windows UAC taklidi veya gerçek yetki yükseltme değildir.
 
-`docs/ui/index.html` dosyasını bir tarayıcıda açın. Kurulum, sunucu, internet veya SDR cihazı gerekmez. Üstteki 01 / 02 / 03 düğmeleri tasarım yönlerini değiştirir.
+## Codex için uygulama
 
-Tek dosyalık paylaşım için: [BIEM_Radia_Arayuz_Onizleme.html](BIEM_Radia_Arayuz_Onizleme.html). CSS, ikonlar, logo ve etkileşim kodu bu dosyanın içindedir.
+Başlangıç dosyası **[CODEX_UI_BRIEF.md](CODEX_UI_BRIEF.md)**. Yapılacaklar; yalnız UI, ek backend olayı gerekebilecek işler ve sonraki ürün aşaması olarak ayrıldı. [design-tokens.json](design-tokens.json) ölçü/renk sistemi, [REFERENCE_REVIEW.md](REFERENCE_REVIEW.md) üretici ekran incelemesi, [VALIDATION.md](VALIDATION.md) kontrol sonuçlarıdır.
 
-- Kanal araması ve “Yalnız aktif” filtresi.
-- Kanal seçimi, ayrıntı paneli, yerel dinleme sesi durumu.
-- Kayıt arşivi: metin, tarih ve slot filtreleri; kayıt seçimi; görsel oynatıcı ve zaman çubuğu.
-- Analog / DMR / TETRA için farklı ayar paneli.
-- Alımı durdurma ve spektruma geçme etkisini gösteren onay akışı.
-- Kaynak bağlantıları ve müşteri kapsamında kimlik rehberi yerleşimi.
+Bu klasör görsel referanstır; Python/Tkinter/ttk uygulamasını web’e taşıma kararı değildir. Tasarım dalı eski `main` kaynaklarından ayrılmıştır. **Yerel çalışan, henüz commit edilmemiş 0.2.0 kaynaklarının üzerine bu dalın `src` dosyaları kopyalanmamalı.** Yalnız `docs/ui/` tasarım girdileri alınmalı; çalışan dal ve yerel notlar esas alınmalıdır.
 
-Tüm kişi/ekip adları, ID'ler, frekanslar, kayıtlar, sinyal seviyeleri, disk bilgisi ve grafikler **temsili**dir. Frekanslar kullanım izni veya kanal planı önerisi değildir. Prototip cihaz açmaz, yayın yapmaz, gerçek çağrı kaydetmez, ses dosyası oynatmaz ve ayarları diske kaydetmez. Oynatıcı yalnızca etkileşimi gösterir. Rehber ve alıcı ayarları yerleşim örneğidir. Kanal panelinde ad, frekans ve mod önizlemeye uygulanır; diğer alanlar yerleşim referansıdır.
+## Kapsam
 
-## Codex için başlangıç
+Tüm kişiler, ID’ler, çağrılar, frekanslar, cihaz envanteri, dosyalar, seviyeler, saatler ve telsiz konumu temsili. Önizleme gerçek ses çalmaz/kaydetmez, SDR açmaz, çevrimiçi haritaya bağlanmaz, ayar veya kayıt dosyası yazmaz. Frekanslar kullanım/kanal planı önerisi değildir. Kontroller birer etkileşim referansıdır; örnek form değişiklikleri yalnız bellekte kalır, bazı gelişmiş formlar yalnız yerleşimi gösterir.
 
-1. [CODEX_UI_BRIEF.md](CODEX_UI_BRIEF.md): uygulanacak tasarım, davranışlar ve sıralama.
-2. [design-tokens.json](design-tokens.json): renk, ölçü ve yazı sistemi.
-3. [REFERENCE_REVIEW.md](REFERENCE_REVIEW.md): incelenen üretici ekranları ve çıkarımlar.
-4. [VALIDATION.md](VALIDATION.md): prototip kontrolü ve gerçek uygulama kabul sınırları.
+Koruma, kaynak sahipliği, 90/2 kayıt kuralı ve protokol doğrulaması gerçek uygulamada mevcut backend tarafından uygulanmalıdır. HTML içindeki durum değişimleri RF veya güvenlik kabul testi sayılmaz. Dosyaların PR’a gönderilmesi, ayrı Windows Codex oturumunun otomatik başladığı anlamına gelmez.
 
-**Kaynak sürümü notu:** GitHub ana dalı inceleme sırasında `e27f0a9` idi; Python/Tk DMR geliştirme dalı `codex/dmr-receiver` / `4e30773` ayrıca incelendi. Kullanıcının son ekranları bu dallarda görünen arayüzden daha ileride. Uygulama başlamadan **PC'de gerçekten çalışan kaynak sürümü** esas alınmalı; bu tasarım dalı eski uygulama kodunu PC'ye taşımak için kullanılmamalı. Tasarım dosyaları bağımsızdır.
-
-Tasarım dalının varlığı, kullanıcının ayrı yerel Codex oturumunda görevin otomatik çalıştığı anlamına gelmez.
-
-Kullanıcının ayrıca belirttiği `BIEM_RADIA_PROJE_NOTLARI_VE_ARAYUZ_BRIFI.md` yerel dosyasının içeriğine bu oturumda erişilemedi. Codex başlangıç talimatında bu dosyanın PC'de önce okunması istendi.
+Özgün logo, amblem ve telsiz WebP’si kullanıcı paketinden değiştirilmeden alındı. Lucide ikon lisansı `assets/LUCIDE-LICENSE`; Natural Earth altlığı kamu malı. Gerçek kayıt, konum günlüğü veya harita karo paketi bu depoya eklenmedi.

@@ -20,7 +20,7 @@
 
 **Görsel gözlem:** PUC sayfasındaki ekran görselinin uygulama başlığında “SmartOne Dispatch” yazıyor. Solda kişi/sistem listesi, merkezde çalışma alanı, sağda çağrı kuyruğu ve yakın geçmiş var. Uyarı üst şeritte dikkat çekiyor. Bu, sayfada yayımlanan referans görselidir; en son kurulu sürümün birebir ekranı olarak sunulmuyor.
 
-**BIEM'e aktarım:** Günlük operasyon ile sistem yapılandırmasını ayırmak; seçili kanal ayrıntılarını bağlama göre açmak; kaydı engelleyen sorunu ilgili kaynağa bağlayarak göstermek. Ortayı büyük bir harita veya boş masa alanıyla doldurmak, BIEM'in ses arşivi önceliğine uygun değil.
+**BIEM'e aktarım:** Günlük operasyon ile sistem yapılandırmasını ayırmak; seçili kanal ayrıntılarını bağlama göre açmak; kaydı engelleyen sorunu ilgili kaynağa bağlayarak göstermek. Canlı izleme ayrı, mevcut son konum haritası ayrı bir çalışma ekranıdır.
 
 ## 3. Motorola WAVE PTX Dispatch
 
@@ -33,7 +33,7 @@
 
 **Adlandırma notu:** Kullanıcı “Motorola Smart Connect” adını verdi. Bu isimle bir masaüstü dispatcher ekranı kesinleştirilemedi; Motorola görsel karşılaştırması doğrudan resmî **WAVE PTX Dispatch** ekranıyla yapıldı. SmartPTT ile WAVE PTX veya SmartConnect birbirinin yerine yazılmamalı.
 
-**BIEM'e aktarım:** Kompakt ve düzenli kanal görünümü, görünür aktif konuşmacı, ayrı ses kontrolü ve kısa çağrı geçmişi. Konum verisi olmayan sisteme süs amaçlı harita eklenmiyor.
+**BIEM'e aktarım:** Kompakt ve düzenli kanal görünümü, görünür aktif konuşmacı, ayrı ses kontrolü ve kısa çağrı geçmişi. V2 güncel brifte doğrulanan son geçerli DMR konumu için ayrı Harita ekranı eklendi; tek nokta ve yaş gösterimi korunuyor.
 
 ## Mevcut BIEM ekranlarındaki somut sorunlar
 
@@ -49,6 +49,10 @@
 
 ## Görsel kimlik ve varlıklar
 
-- BIEM logosu [şirket sitesinin özgün PNG dosyasından](https://www.biemelektronik.com/biem-dosyalar/images/91ac19b2e_logo_png.png) alındı. Piksel içeriği değiştirilmedi. CSS ile oranlı küçültülür. Gece görünümünde özgün renklerin okunması için beyaz bir zemin kullanılır.
+- V2 logo, amblem ve telsiz görseli kullanıcının 12.09.2026 tasarım ZIP’inden birebir alındı. Dosya içerikleri değiştirilmedi; CSS yalnız oranlı boyutlandırır.
 - Arayüz ikonları Lucide paketinin seçili ikonlarıdır. Lisans: [assets/LUCIDE-LICENSE](assets/LUCIDE-LICENSE).
 - Rakip yazılım grafikleri, kodu, logoları veya görsel varlıkları prototipe taşınmadı.
+
+## V2 çevrimdışı harita altlığı
+
+[Resmî Natural Earth veri deposu](https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_110m_admin_0_countries.geojson) içindeki 1:110m ülke geometrilerinden Türkiye ve yakın bölge alındı. [Natural Earth kullanım koşulları](https://www.naturalearthdata.com/about/terms-of-use/): kamu malı. Bu statik, basitleştirilmiş coğrafi altlık; sokak/uydu karosu veya tüm müşteri harita paketi değildir. Telsiz konumu, kimlikler ve saatler temsili; kent adları yalnız coğrafi bağlamdır. Üretimde mevcut çevrimdışı paket okuyucusu korunur.

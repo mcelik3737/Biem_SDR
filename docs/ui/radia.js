@@ -1,280 +1,291 @@
-/* Design reference only. All data below is fictional; no receiver, network or audio access. */
+/* BIEM Radia V2 design reference. Every datum is fictional. No hardware, network,
+   credentials, elevation, real audio, or persistent application settings. */
 'use strict';
-const state = { direction: 'operations', view: 'live', selected: 1, record: 1, acquiring: true, measuring: false, muted: new Set(), playing: false, progress: 6, speed: 1, columns: 'auto', toastTimer: null };
+const state = {
+  view:'live', selected:1, record:1, owner:'radio', admin:false, scenario:'normal', receiveMode:'fixed',
+  muted:new Set(), playing:false, fmOpen:false, fmFrequency:98.5, sourcesTab:'receiver',
+  gain:29, gainApplied:29, agc:false, ppm:0, archive:{query:'',date:'2026-09-12',slot:''}, liveQuery:'', onlyActive:false,
+  mapZoom:1, mapCenter:[35,39], mapInfo:true, logFilter:'', logCategory:'all',
+  spectrum:{start:460,end:461,zoom:1,center:460.5,threshold:-48,top:-10,range:80,lock:null,window:'Hann',average:2,marker:12.5,peakHold:false,display:'both',settle:'Dengeli · 120 ms'}, toastTimer:null
+};
 const channels = [
-  {id:1,name:'Güvenlik',mode:'DMR',frequency:'460.10000',status:'receiving',caller:'Devriye 02',radio:1002,group:101,groupName:'Güvenlik ekibi',slot:1,cc:1,duration:'00:18',level:-42,source:'RTL-SDR 01',enabled:true},
-  {id:2,name:'Teknik ekip',mode:'DMR',frequency:'460.12500',status:'receiving',caller:'Teknik 03',radio:2003,group:201,groupName:'Teknik ekip',slot:2,cc:1,duration:'00:07',level:-47,source:'RTL-SDR 01',enabled:true},
-  {id:3,name:'Lojistik',mode:'NFM',frequency:'460.15000',status:'idle',caller:null,radio:null,group:null,slot:null,cc:null,duration:null,level:-63,source:'RTL-SDR 01',enabled:true},
-  {id:4,name:'Üretim',mode:'DMR',frequency:'460.17500',status:'warning',caller:null,radio:null,group:null,slot:null,cc:null,duration:null,level:-51,source:'RTL-SDR 01',enabled:true},
-  {id:5,name:'Saha destek',mode:'NFM',frequency:'460.20000',status:'idle',caller:null,radio:null,group:null,slot:null,cc:null,duration:null,level:-67,source:'RTL-SDR 01',enabled:true},
-  {id:6,name:'Yedek kanal',mode:'TETRA',frequency:'460.22500',status:'disabled',caller:null,radio:null,group:null,slot:null,cc:null,duration:null,level:null,source:'RTL-SDR 01',enabled:false}
+ {id:1,name:'Güvenlik',mode:'DMR',frequency:'460.10000',enabled:true,status:'voice',radio:1002,alias:'Devriye 02',callType:'group',target:101,targetAlias:'Güvenlik ekibi',physicalSlot:1,decoderLane:1,cc:1,configuredCC:'Tümü',level:-42,duration:18},
+ {id:2,name:'Teknik ekip',mode:'DMR',frequency:'460.12500',enabled:true,status:'idle',radio:null,physicalSlot:null,decoderLane:null,cc:null,configuredCC:'11',level:-67,duration:null},
+ {id:3,name:'Lojistik',mode:'NFM',frequency:'460.15000',enabled:true,status:'recording',radio:null,physicalSlot:null,decoderLane:null,cc:null,level:-44,duration:24},
+ {id:4,name:'Üretim',mode:'DMR',frequency:'460.17500',enabled:true,status:'signal',radio:null,physicalSlot:null,decoderLane:null,cc:null,configuredCC:'Tümü',level:-51,duration:null},
+ {id:5,name:'Saha destek',mode:'TETRA',frequency:'460.20000',enabled:true,status:'gap',radio:null,physicalSlot:3,decoderLane:null,cc:7,configuredCC:'Tümü',level:-48,duration:90},
+ {id:6,name:'Yedek kanal',mode:'NXDN',frequency:'460.22500',enabled:false,status:'disabled',radio:null,physicalSlot:null,decoderLane:null,cc:null,level:null,duration:null}
 ];
 const records = [
-  {id:1,time:'14:31:52',channel:1,caller:'Devriye 02',radio:1002,group:101,slot:1,seconds:22},
-  {id:2,time:'14:30:41',channel:2,caller:'Teknik 03',radio:2003,group:201,slot:2,seconds:14},
-  {id:3,time:'14:29:18',channel:3,caller:null,radio:null,group:null,slot:null,seconds:31},
-  {id:4,time:'14:28:04',channel:1,caller:'Devriye 01',radio:1001,group:101,slot:1,seconds:12},
-  {id:5,time:'14:26:57',channel:5,caller:null,radio:null,group:null,slot:null,seconds:9},
-  {id:6,time:'14:25:36',channel:2,caller:'Teknik 01',radio:2001,group:201,slot:2,seconds:19},
-  {id:7,time:'14:24:02',channel:1,caller:'Devriye 02',radio:1002,group:101,slot:1,seconds:8},
-  {id:8,time:'14:22:49',channel:3,caller:null,radio:null,group:null,slot:null,seconds:17},
-  {id:9,time:'14:21:06',channel:1,caller:'Devriye 01',radio:1001,group:101,slot:1,seconds:26}
+ {id:1,time:'14:31:52',channel:1,mode:'DMR',alias:'Devriye 02',radio:1002,callType:'group',target:101,physicalSlot:1,decoderLane:1,seconds:22},
+ {id:2,time:'14:30:41',channel:2,mode:'DMR',alias:'Teknik 03',radio:2003,callType:'private',target:9005,physicalSlot:null,decoderLane:1,seconds:14},
+ {id:3,time:'14:29:18',channel:3,mode:'NFM',radio:null,callType:null,target:null,physicalSlot:null,decoderLane:null,seconds:31},
+ {id:4,time:'14:28:04',channel:5,mode:'TETRA',radio:null,callType:null,target:null,physicalSlot:3,decoderLane:null,seconds:90},
+ {id:5,time:'14:26:57',channel:3,mode:'NFM',radio:null,callType:null,target:null,physicalSlot:null,decoderLane:null,seconds:9},
+ {id:6,time:'14:25:36',channel:2,mode:'DMR',alias:'Teknik 01',radio:2001,callType:'group',target:201,physicalSlot:2,decoderLane:2,seconds:19},
+ {id:7,time:'14:24:02',channel:6,mode:'NXDN',radio:3002,callType:'group',target:301,physicalSlot:null,decoderLane:null,seconds:8},
+ {id:8,time:'14:22:49',channel:4,mode:'APCO25',radio:4002,callType:'group',target:401,physicalSlot:null,decoderLane:null,seconds:17}
 ];
-const main = document.getElementById('main');
-const escapeHtml = value => String(value ?? '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const icon = name => '<i data-icon="' + name + '"></i>';
-const pad = n => String(n).padStart(2, '0');
-const duration = n => pad(Math.floor(n / 60)) + ':' + pad(Math.floor(n % 60));
-const lookup = id => channels.find(c => c.id === Number(id));
-const active = c => state.acquiring && c.enabled && c.status === 'receiving';
-const activeCount = () => channels.filter(active).length;
-const lower = s => String(s ?? '').toLocaleLowerCase('tr-TR');
-const button = (text, action, name, extra = '') => '<button class="button ' + extra + '" data-action="' + action + '">' + (name ? icon(name) : '') + text + '</button>';
-function mountIcons(root = document) {
-  root.querySelectorAll('[data-icon]').forEach(node => {
-    const definition = window.RADIA_ICONS[node.dataset.icon];
-    if (!definition) return;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('class','icon'); svg.setAttribute('aria-hidden','true');
-    for (const [tag, attributes] of definition) {
-      const child = document.createElementNS(svg.namespaceURI, tag);
-      for (const [key, value] of Object.entries(attributes)) child.setAttribute(key, value);
-      svg.appendChild(child);
-    }
-    node.replaceWith(svg);
-  });
+const logRows = [
+ {time:'14:32:16',mode:'DMR',channel:'Güvenlik',category:'Ses',text:'[TEMSİLİ] Voice sync; source=1002; group=101; physical_slot=1'},
+ {time:'14:32:15',mode:'DMR',channel:'Güvenlik',category:'Kimlik',text:'[TEMSİLİ] CC=1; kaynak kimliği=1002; çağrı türü=group'},
+ {time:'14:32:13',mode:'TETRA',channel:'Saha destek',category:'Sistem',text:'[TEMSİLİ] Slot=3; sync=locked; kimlik ilişkilendirmesi bilinmiyor'},
+ {time:'14:30:00',mode:'DMR',channel:'Teknik ekip',category:'Konum / SDS',text:'[TEMSİLİ] GPS/SDS anahtar sözcüğü; kategori etiketi, geçerli konum kanıtı değildir'}
+];
+const $ = (id) => document.getElementById(id);
+const main=$('main');
+const esc=v=>String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const low=v=>String(v??'').toLocaleLowerCase('tr-TR');
+const pad=n=>String(n).padStart(2,'0');
+const duration=n=>n==null?'—':pad(Math.floor(n/60))+':'+pad(n%60);
+const icon=name=>'<i data-icon="'+name+'"></i>';
+const button=(label,action,name,extra='')=>`<button class="button ${extra}" data-action="${action}">${name?icon(name):''}${label}</button>`;
+const badge=(text,tone='neutral')=>`<span class="badge ${tone}">${esc(text)}</span>`;
+const field=(label,content)=>`<label class="field"><span>${label}</span>${content}</label>`;
+const input=(id,value,type='text',extra='')=>`<input id="${id}" type="${type}" value="${esc(value)}" ${extra}>`;
+const options=(items,current)=>items.map(i=>`<option ${String(i)===String(current)?'selected':''}>${esc(i)}</option>`).join('');
+const select=(id,items,current,extra='')=>`<select id="${id}" ${extra}>${options(items,current)}</select>`;
+const dl=items=>`<dl class="detail-grid">${items.map(([k,v])=>`<div><dt>${k}</dt><dd>${v??'—'}</dd></div>`).join('')}</dl>`;
+const notice=(title,text,tone='amber',action='')=>`<div class="notice ${tone}">${icon(tone==='red'?'CircleAlert':tone==='blue'?'CircleHelp':'LockKeyhole')}<div><strong>${title}</strong><p>${text}</p></div>${action}</div>`;
+const heading=(title,sub,actions='')=>`<div class="page-heading"><div><h1>${title}</h1><p>${sub}</p></div><div class="heading-actions">${actions}</div></div>`;
+const channel=id=>channels.find(c=>c.id===Number(id));
+const record=id=>records.find(r=>r.id===Number(id));
+const sourceUnavailable=()=>['missing','busy'].includes(state.scenario);
+const ownerLabel=()=>({radio:'Kanal alımı',fm:'FM RADIO',spectrum:'Spektrum',none:'Boşta'})[state.owner];
+const slotLabel=r=>r.physicalSlot!=null?`${r.physicalSlot} (fiziksel)`:r.decoderLane!=null?`${r.decoderLane} (çözücü)`:'—';
+const targetLabel=r=>r.target==null?'—':`${r.callType==='private'?'Özel hedef':'Grup'} ${r.target}`;
+function mountIcons(root=document){
+ root.querySelectorAll('[data-icon]').forEach(node=>{
+  const def=window.RADIA_ICONS[node.dataset.icon]; if(!def)return;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','icon');svg.setAttribute('aria-hidden','true');
+  def.forEach(([tag,attrs])=>{const n=document.createElementNS(svg.namespaceURI,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v));svg.append(n);}); node.replaceWith(svg);
+ });
 }
-function toast(message) {
-  const el = document.getElementById('toast'); el.textContent = message; el.classList.add('visible');
-  clearTimeout(state.toastTimer); state.toastTimer = setTimeout(() => el.classList.remove('visible'), 4200);
+function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),4200);}
+function status(c){
+ if(!c.enabled)return ['Devre dışı','neutral','Kanal kapalı'];
+ if(sourceUnavailable())return [state.scenario==='missing'?'Cihaz bulunamadı':'Cihaz meşgul','red','Alım yapılamıyor'];
+ if(state.owner!=='radio')return ['Alım durduruldu','neutral','Kayıt alınmıyor'];
+ if(state.receiveMode==='scan'&&c.id!==1)return ['Sıra bekliyor','neutral','Önceki ölçüm · 6 sn önce'];
+ return ({voice:['Ses çözüldü','blue','Çağrı sonunda arşive'],recording:['Ses alınıyor','blue','Kaydediliyor'],gap:['Kayıt arası','amber','2 saniyelik kayıt arası'],signal:['Sinyal var','amber','Ses henüz çözülemedi'],idle:['Bekliyor','neutral','Eşik altında']})[c.status];
 }
-function updateChrome() {
-  document.body.dataset.theme = state.direction;
-  document.querySelectorAll('[data-direction]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.direction === state.direction)));
-  document.querySelectorAll('[data-view]').forEach(b => { b.classList.toggle('selected',b.dataset.view === state.view); b.setAttribute('aria-current',b.dataset.view === state.view ? 'page' : 'false'); });
-  document.getElementById('global-status').textContent = state.acquiring ? 'Alıcı çalışıyor' : state.measuring ? 'Spektrum ölçülüyor' : 'Alıcı durduruldu';
-  document.querySelector('.health .dot').className = 'dot ' + (state.acquiring ? 'green' : state.measuring ? 'amber' : '');
-  document.getElementById('receiver-toggle').innerHTML = icon(state.acquiring ? 'Square' : 'Play') + (state.acquiring ? 'Alımı durdur' : 'Alımı başlat');
-  document.getElementById('footer-recording').textContent = activeCount() ? activeCount() + ' çağrı kaydediliyor' : 'Kayıt alınmıyor';
-  document.getElementById('footer-state').textContent = state.measuring ? 'SDR spektrum ölçümünde' : state.acquiring ? 'USB · RTL-SDR 01' : 'Alıcı durduruldu';
+function isCurrent(c){return c.enabled&&!sourceUnavailable()&&state.owner==='radio'&&(state.receiveMode!=='scan'||c.id===1);}
+function updateChrome(){
+ document.querySelectorAll('[data-view]').forEach(b=>{const on=b.dataset.view===state.view;b.classList.toggle('selected',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+ $('global-status').textContent=sourceUnavailable()?(state.scenario==='missing'?'Cihaz yok':'Cihaz meşgul'):`İş: ${ownerLabel()}`;
+ $('receiver-toggle').innerHTML=icon(state.owner==='radio'?'Square':'Play')+(state.owner==='radio'?'Alımı durdur':'Alımı başlat');
+ $('receiver-toggle').disabled=sourceUnavailable();
+ $('permission-state').innerHTML=icon('LockKeyhole')+(state.admin?'Windows yönetici':'Normal süreç');
+ $('footer-state').innerHTML=icon('Usb')+`USB · RTL-SDR 01 <span class="footer-divider">|</span> ${ownerLabel()} <span class="footer-divider">|</span> ${state.receiveMode==='scan'?'Sıralı tarama':'Sabit / bant içi'}`;
+ $('fm-toggle').classList.toggle('active',state.owner==='fm');$('fm-toggle').setAttribute('aria-expanded',String(state.fmOpen));
+ $('demo-admin').checked=state.admin; $('demo-scenario').value=state.scenario;
+ renderFM();
 }
-function heading(title, sub, actions='') {
-  return '<div class="page-heading"><div><h1>' + title + '</h1><p>' + sub + '</p></div><div class="heading-actions">' + actions + '</div></div>';
+function render(){
+ updateChrome();const views={live:liveView,archive:archiveView,map:mapView,directory:directoryView,logs:logsView,spectrum:spectrumView,sources:sourcesView,about:aboutView};
+ main.innerHTML=views[state.view]();mountIcons();
+ if(state.view==='live')filterChannels();if(state.view==='archive')filterRecords();if(state.view==='map')paintMap();if(state.view==='spectrum')paintSpectrum();
 }
-function render() {
-  updateChrome();
-  const screens = {live:liveView,archive:archiveView,spectrum:spectrumView,sources:sourcesView,directory:directoryView};
-  main.innerHTML = screens[state.view]();
-  mountIcons();
-  if (state.view === 'live') filterChannels();
-  if (state.view === 'archive') filterRecords();
+function navigate(view){if(state.view!==view){state.view=view;main.scrollTop=0;}render();}
+function showDrawer(title,body,footer=''){
+ const d=$('drawer');d.innerHTML=`<div class="drawer-top"><h2 id="drawer-title">${title}</h2><button class="icon-button" data-action="close-drawer" aria-label="Paneli kapat">${icon('X')}</button></div><div class="drawer-content">${body}</div><div class="drawer-footer">${footer||button('Kapat','close-drawer')}</div>`;
+ mountIcons(d);if(!d.open)d.showModal();
 }
-function navigate(view) {
-  if (state.view !== view) { state.playing = false; state.view = view; main.scrollTop = 0; }
-  render();
+function confirmAction(title,text,action){
+ const d=$('confirmation');d.innerHTML=`<h2 id="confirmation-title">${title}</h2><p>${text}</p><div class="confirmation-actions">${button('Vazgeç','cancel-confirmation')}<button class="button primary" id="confirm-yes">Geçişi önizle</button></div>`;
+ $('confirm-yes').onclick=()=>{d.close();action();};d.showModal();
 }
-function setDirection(direction) {
-  state.direction = direction; state.playing = false;
-  state.view = direction === 'review' ? 'archive' : 'live';
-  history.replaceState(null,'','#' + direction); main.scrollTop = 0; render();
+function changeOwner(next){
+ if(sourceUnavailable()){toast('Seçili cihaz kullanılamıyor. Kaynaklar ekranını kontrol edin.');return;}
+ if(next==='spectrum'&&!state.admin){toast('Ölçüm için Windows yönetici yetkisi gerekli.');return;}
+ const apply=()=>{state.owner=next;render();toast(next==='none'?'İş durduruldu (temsili).':`${ownerLabel()} görünümüne geçildi (temsili).`);};
+ if(state.owner!=='none'&&state.owner!==next&&!(next==='none'&&state.owner==='spectrum')){confirmAction('Seçili SDR işi değişecek',`${ownerLabel()} durdurulacak. Açık ses dosyaları güvenle sonlandırılıp cihaz bırakıldıktan sonra ${next==='none'?'alım duracak':({radio:'kanal alımı',fm:'FM RADIO',spectrum:'spektrum'})[next]+' başlayacak'}. Bu önizleme gerçek alıcıyı kontrol etmez.`,apply);}else apply();
 }
-function liveView() {
-  return heading('Canlı izleme', 'Kanallar, konuşan ekipler ve kayıtlar tek bakışta.',
-    button('Kanal düzeni','layout','LayoutGrid') + button('Kanal ayarları','edit-selected','SlidersHorizontal')) +
-    '<div class="source-strip"><span class="source-chip">' + icon('Usb') + '<strong>RTL-SDR 01</strong><span class="muted">USB</span></span><span class="source-separator"></span><span class="source-chip"><i class="dot ' + (state.acquiring?'green':'') + '"></i><span>' + (state.acquiring?'Sabit alım':'Alım durdu') + '</span></span><span class="source-caption">Aynı RF bandında eşzamanlı izleme</span><span class="source-separator"></span><span class="source-chip"><i class="dot red"></i><strong>' + activeCount() + ' aktif kayıt</strong></span><button class="source-link" data-action="sources">Kaynak ayrıntıları ' + icon('ChevronRight') + '</button></div>' +
-    '<div class="live-workspace"><section class="channel-area"><div class="section-toolbar"><div class="section-label"><h2>Kanallar</h2><span class="count-badge">6</span></div><div class="toolbar-filters"><label class="search">' + icon('Search') + '<input id="channel-search" aria-label="Kanal, kişi veya grup ara" placeholder="Kanal, kişi veya grup ara"></label><label class="checkbox"><input id="active-only" type="checkbox">Yalnız aktif</label></div></div><div class="channel-grid" id="channel-grid"></div>' +
-    '<section class="recent-panel"><div class="panel-heading"><div class="section-label"><h2>Son tamamlanan kayıtlar</h2><span class="count-badge">Bugün</span></div>' + button('Kayıt arşivini aç','archive','ArrowRight','subtle') + '</div><div class="table-wrap">' + recordsTable(records.slice(0,3),true) + '</div></section></section><aside class="detail-panel" id="live-detail">' + liveDetail(lookup(state.selected)) + '</aside></div>';
+function liveView(){
+ const warning=sourceUnavailable()?notice(state.scenario==='missing'?'Seçili USB cihaz bulunamadı':'USB cihaz başka bir uygulama tarafından kullanılıyor','Cihaz listesini yenileyin; aynı cihazı kullanan uygulamayı kontrol edin.','red',button('Kaynaklar','sources','Cable')):'';
+ return heading('Canlı izleme','Çağrı, kimlik ve kayıt durumu aynı çalışma alanında.',button('Kanal ayarları','edit-selected','Settings2'))+warning+
+ `<div class="source-strip"><span>${icon('Usb')}<b>RTL-SDR 01</b><small>USB</small></span><span class="source-job"><i class="dot blue"></i>${ownerLabel()}</span><span>${state.receiveMode==='scan'?'Tarama · Kanal 01 / 5':'Sabit · bant içi'}</span><span class="source-caption">${state.receiveMode==='scan'?'Diğer kanallar sıra bekler':'Kullanılabilir IQ bandındaki kanallar'}</span><button class="source-link" data-action="sources">Kaynak ayrıntıları ${icon('ChevronRight')}</button></div>`+
+ `<div class="quick-controls"><span class="quick-label">ALICI</span>${field('RF kazancı / dB',input('quick-gain',state.gain,'number','min="0" max="50" step="1"'))}${button('+10 dB','gain-plus')}<label class="checkbox"><input type="checkbox" id="quick-agc" ${state.agc?'checked':''}>Tuner AGC</label>${button('Uygula','apply-gain')}<span class="helper">Uygulanan: <b>${state.agc?'Tuner AGC':state.gainApplied+' dB'}</b></span><span class="control-divider"></span>${field('Alım biçimi',`<select id="receive-mode" ${state.owner==='radio'?'disabled':''}><option value="fixed" ${state.receiveMode==='fixed'?'selected':''}>Sabit / bant içi</option><option value="scan" ${state.receiveMode==='scan'?'selected':''}>Sıralı tarama</option></select>`)}</div>`+
+ `<div class="live-workspace"><section class="channel-area"><div class="section-toolbar"><div class="section-label"><h2>Kanallar</h2>${badge('6')}</div><div class="toolbar-filters"><label class="search">${icon('Search')}<input id="channel-search" value="${esc(state.liveQuery)}" aria-label="Kanal veya kimlik ara" placeholder="Kanal veya kimlik ara"></label><label class="checkbox"><input type="checkbox" id="active-only" ${state.onlyActive?'checked':''}>Ses olanlar</label></div></div><div class="channel-grid" id="channel-grid"></div><section class="recent-panel"><div class="panel-heading"><h2>Son tamamlanan kayıtlar</h2>${button('Arşivi aç','archive','ArrowRight','subtle')}</div><div class="table-wrap">${recordsTable(records.slice(0,3),true)}</div></section></section><aside id="live-detail" class="detail-panel">${liveDetail(channel(state.selected))}</aside></div>`;
 }
-function card(c) {
-  const receiving = active(c);
-  const status = !c.enabled ? 'Devre dışı' : !state.acquiring ? 'Alım durdu' : receiving ? 'Alınıyor' : c.status === 'warning' ? 'Senkron yok' : 'Beklemede';
-  const cls = receiving?'rx':state.acquiring && c.status==='warning'?'warning':'';
-  const identity = receiving ? '<div><div class="caller-name">' + escapeHtml(c.caller) + '</div><div class="caller-meta">ID ' + c.radio + ' · TG ' + c.group + ' · Slot ' + c.slot + '</div></div><strong class="call-timer">' + c.duration + '</strong>' : '<span class="idle-label">' + (!c.enabled ? 'Deneysel · etkin değil' : !state.acquiring ? 'Alıcı başlatılmayı bekliyor' : c.status==='warning' ? 'Sinyal var, ses çözülemedi' : 'Yeni çağrı bekleniyor') + '</span>';
-  const level = c.enabled && state.acquiring ? c.level : null;
-  const lit = level === null ? 0 : Math.max(0,Math.round((level+85)/6));
-  const meter = Array.from({length:12},(_,i) => '<span class="' + (i<lit?'on':'') + '"></span>').join('');
-  return '<article class="channel-card ' + (receiving?'receiving ':'') + (state.acquiring&&c.status==='warning'?'warning ':'') + (state.selected===c.id?'selected':'') + '" data-channel-card="' + c.id + '">' +
-    '<button class="card-main" data-select-channel="' + c.id + '" aria-pressed="' + (state.selected===c.id) + '" aria-label="' + escapeHtml(c.name + ', ' + status + ', ayrıntıları göster') + '"><div class="card-top"><span class="channel-number">CH ' + pad(c.id) + '</span><span class="mode-badge">' + c.mode + '</span><span class="state-badge ' + cls + '"><i class="dot ' + (receiving?'blue':cls==='warning'?'amber':'') + '"></i>' + status + '</span></div><div class="card-name">' + escapeHtml(c.name) + '</div><div class="frequency">' + c.frequency + ' MHz</div><div class="card-identity">' + identity + '</div><div class="signal-row"><div class="meter" aria-hidden="true">' + meter + '</div><span class="mono">' + (level===null?'—':level+' dBFS') + '</span></div></button>' +
-    '<div class="card-footer"><span class="record-status ' + (receiving?'active':'muted') + '"><i class="dot ' + (receiving?'red':'') + '"></i>' + (receiving?'Kaydediliyor':!c.enabled?'Kayıt kapalı':c.status==='warning'&&state.acquiring?'Ses kaydı yok':'Kayıt bekliyor') + '</span><div><button class="icon-button" data-mute="' + c.id + '" aria-pressed="' + state.muted.has(c.id) + '" aria-label="' + escapeHtml(c.name + (state.muted.has(c.id)?' dinleme sesini aç':' dinleme sesini kapat')) + '" title="Yerel dinleme sesi; kayıt etkilenmez">' + icon(state.muted.has(c.id)?'VolumeX':'Volume2') + '</button><button class="icon-button" data-edit-channel="' + c.id + '" aria-label="' + escapeHtml(c.name+' ayarları') + '">' + icon('Settings2') + '</button></div></div></article>';
+function card(c){
+ const [label,tone,recordState]=status(c),current=isCurrent(c),voice=current&&['voice','recording','gap'].includes(c.status);
+ const speaker=voice?(c.mode==='NFM'?'Analog konuşma':c.alias||'Kimlik bilinmiyor'):(c.status==='signal'&&current?'Sinyal var; ses henüz çözülemedi':'Aktif konuşma yok');
+ const metadata=voice?(c.mode==='NFM'?'ID / grup / slot yok':`ID ${c.radio??'—'} · ${targetLabel(c)} · ${slotLabel(c)}`):c.mode==='TETRA'?'Ses çözücüsü mevcut · saha iyileştirmesi sürüyor':c.mode==='NXDN'?'Örnek dosyada test edildi':'Kimlik bekleniyor';
+ return `<article class="channel-card ${tone} ${state.selected===c.id?'selected':''}"><button class="card-main" data-channel="${c.id}" aria-pressed="${state.selected===c.id}"><div class="card-top"><span class="channel-number">KANAL ${pad(c.id)}</span>${badge(c.mode)}<span class="state-badge ${tone}"><i class="dot ${tone}"></i>${label}</span></div><div class="card-name">${esc(c.name)}</div><div class="frequency mono">${c.frequency} <span>MHz</span></div><div class="card-identity"><div><strong>${esc(speaker)}</strong><small>${esc(metadata)}</small></div><span class="call-timer">${voice?duration(c.duration):'—'}</span></div><div class="signal-row"><div class="meter">${Array.from({length:16},(_,i)=>`<span class="${current&&c.level!=null&&i<Math.round((c.level+85)/4)?'on':''}"></span>`).join('')}</div><span class="mono">${current&&c.level!=null?c.level+' dBFS':state.receiveMode==='scan'&&state.owner==='radio'&&c.enabled?'Ölçüm eski':'— dBFS'}</span></div></button><div class="card-footer"><span class="record-state ${c.status==='recording'&&current?'red':tone}"><i class="dot ${c.status==='recording'&&current?'red':tone}"></i>${recordState}</span><button class="icon-button" data-edit="${c.id}" aria-label="${esc(c.name)} ayarlarını aç">${icon('Settings2')}</button></div></article>`;
 }
-function filterChannels() {
-  const term = lower(document.getElementById('channel-search')?.value);
-  const only = document.getElementById('active-only')?.checked;
-  const filtered = channels.filter(c => (!only||active(c)) && lower([c.name,c.caller,c.radio,c.group,c.groupName,c.mode,c.frequency].join(' ')).includes(term));
-  const grid = document.getElementById('channel-grid');
-  if (!grid) return;
-  grid.innerHTML = filtered.map(card).join('') || '<div class="empty"><strong>Kanal bulunamadı</strong><small>Arama metnini veya aktif kanal filtresini değiştirin.</small></div>';
-  grid.style.gridTemplateColumns = state.columns === 'auto' ? '' : 'repeat(' + Math.min(Number(state.columns), Math.max(1, Math.floor(grid.clientWidth / 260))) + ',minmax(0,1fr))';
-  mountIcons(grid);
+function filterChannels(){
+ if(!$('channel-grid'))return;
+ const rows=channels.filter(c=>(!state.onlyActive||(isCurrent(c)&&['voice','recording'].includes(c.status)))&&low([c.name,c.mode,c.radio,c.alias,c.target,c.frequency].join(' ')).includes(low(state.liveQuery)));
+ $('channel-grid').innerHTML=rows.map(card).join('')||'<div class="empty"><h3>Kanal bulunamadı</h3><p>Aramayı veya “Ses olanlar” filtresini değiştirin.</p></div>';mountIcons($('channel-grid'));
 }
-function liveDetail(c) {
-  const receiving = active(c);
-  return '<div class="detail-header"><strong>Seçili kanal</strong><span class="mono">CH ' + pad(c.id) + '</span></div><div class="detail-body"><div class="detail-eyebrow"><i class="dot ' + (receiving?'blue':'') + '"></i>' + (receiving?'GELEN GRUP ÇAĞRISI':'KANAL DURUMU') + '</div><div class="avatar-call">' + icon(c.mode==='NFM'?'Radio':'Users') + '</div><h3>' + escapeHtml(receiving?c.caller:c.name) + '</h3><p class="detail-subtitle">' + escapeHtml(receiving?c.groupName:c.mode+' · '+c.frequency+' MHz') + '</p><dl class="detail-grid"><div><dt>Telsiz ID</dt><dd>' + (receiving?c.radio:'—') + '</dd></div><div><dt>Grup ID</dt><dd>' + (receiving?c.group:'—') + '</dd></div><div><dt>Zaman dilimi</dt><dd>' + (receiving?'Slot '+c.slot:'—') + '</dd></div><div><dt>Color code</dt><dd>' + (receiving?c.cc:'—') + '</dd></div><div><dt>Kanal</dt><dd>' + escapeHtml(c.name) + '</dd></div><div><dt>Kaynak</dt><dd>USB · 01</dd></div></dl><div class="detail-record"><span class="record-status ' + (receiving?'active':'muted') + '"><i class="dot ' + (receiving?'red':'') + '"></i>' + (receiving?'Ses kaydediliyor':'Aktif ses kaydı yok') + '</span><span class="mono">' + (receiving?c.duration:'—') + '</span></div><div class="detail-actions"><button class="button" data-mute="' + c.id + '">' + icon(state.muted.has(c.id)?'VolumeX':'Volume2') + (state.muted.has(c.id)?'Sesi aç':'Sesi kapat') + '</button><button class="button" data-channel-history="' + c.id + '">' + icon('Archive') + 'Geçmiş</button></div><p class="detail-note">' + (c.mode==='NFM'?'Analog FM kayıtlarında otomatik telsiz ID, grup ve slot bulunmaz.':c.mode==='TETRA'?'Deneysel kanal; saha doğrulaması bekliyor.':'Kimlik bilgisi çözülemediğinde alanlar boş kalır.') + ' Dinleme sesini kapatmak kaydı durdurmaz.</p></div>';
+function liveDetail(c){
+ const current=isCurrent(c),voice=current&&['voice','recording','gap'].includes(c.status);
+ const analog=c.mode==='NFM';
+ return `<div class="detail-header"><strong>Seçili kanal</strong><span class="mono">CH ${pad(c.id)}</span></div><div class="detail-body"><div class="detail-eyebrow">${voice?(c.callType==='private'?'GELEN ÖZEL ÇAĞRI':c.callType==='group'?'GELEN GRUP ÇAĞRISI':'SES AKIŞI'):'KANAL DURUMU'}</div><div class="avatar-call">${icon('Radio')}</div><h3>${esc(voice?c.alias||c.name:c.name)}</h3><p class="detail-subtitle">${esc(voice?c.targetAlias||targetLabel(c):c.frequency+' MHz')}</p>${dl([['Kaynak ID',voice&&!analog?c.radio??'Bilinmiyor':'—'],[c.callType==='private'?'Özel hedef':'Grup ID',voice&&!analog?c.target??'Bilinmiyor':'—'],['Fiziksel slot',voice&&!analog?c.physicalSlot??'Bilinmiyor':'—'],['Çözücü kanalı',voice&&!analog?c.decoderLane??'—':'—'],['Yapılandırılan mod',c.mode],['Çözülen protokol',voice&&!analog?c.mode:'—'],['CC filtresi',c.configuredCC??'—'],['Alınan CC',voice?c.cc??'—':'—']])}<div class="detail-record">${badge(status(c)[2],status(c)[1])}<b class="mono">${voice?duration(c.duration):'—'}</b></div><div class="detail-actions"><button class="button" data-action="monitor">${icon(state.muted.has(c.id)?'VolumeX':'Volume2')}${state.muted.has(c.id)?'Sesi aç':'Sesi kapat'}</button><button class="button" data-history="${c.id}">${icon('Archive')}Geçmiş</button></div><p class="detail-note">${analog?'Analogda otomatik ID, grup ve slot bulunmaz.':c.mode==='DMR'?'Çağrı tamamlanınca dosya arşive aktarılır.':c.mode==='TETRA'?'TETRA sesi mevcut; kesilmeler ve kimlik eşleştirmesi için saha çalışması sürüyor.':'Yalnız doğrulanan kimlik bilgisi gösterilir.'} Dinleme sesini kapatmak kaydı durdurmaz.</p></div>`;
 }
-function selectChannel(id) {
-  state.selected = Number(id); filterChannels();
-  const detail = document.getElementById('live-detail');
-  if (detail) {detail.innerHTML = liveDetail(lookup(id));mountIcons(detail);}
-  if (window.innerWidth<=1160 || state.direction==='night') {
-    showDrawer('Kanal ayrıntıları','<div class="detail-panel" style="margin:0;border:0">' + liveDetail(lookup(id)) + '</div>');
-  }
+function selectChannel(id){state.selected=Number(id);filterChannels();if($('live-detail')){$('live-detail').innerHTML=liveDetail(channel(id));mountIcons($('live-detail'));}if(innerWidth<1550)showDrawer('Seçili kanal',liveDetail(channel(id)));}
+function filename(r){const prefix=r.mode==='NFM'?'analog':`${r.radio??'bilinmiyor'}_${r.target??'bilinmiyor'}`;return `${prefix}_2026-09-12_${r.time.replaceAll(':','_')}_${r.seconds.toFixed(2)}sn.wav.radia`;}
+function recordsTable(rows,compact=false){return `<table><thead><tr><th>Saat / yerel</th><th>Kanal / protokol</th><th>Konuşan / kaynak ID</th><th>Çağrı hedefi</th><th>Slot türü</th><th>Süre</th><th>Kayıt</th><th><span class="sr-only">Dinleme</span></th></tr></thead><tbody id="${compact?'recent-rows':'archive-rows'}">${recordRows(rows)}</tbody></table>`;}
+function recordRows(rows){return rows.map(r=>`<tr class="${state.record===r.id?'selected':''}" data-record-row="${r.id}"><td class="mono">${r.time}</td><td><strong>${esc(channel(r.channel).name)}</strong><small class="cell-secondary">${r.mode}</small></td><td>${esc(r.alias||(r.mode==='NFM'?'Analog konuşma':r.radio!=null?'Ad eşleşmesi yok':'Kimlik bilinmiyor'))}<small class="cell-secondary">${r.radio==null?'—':'ID '+r.radio}</small></td><td>${targetLabel(r)}</td><td>${slotLabel(r)}</td><td class="mono">${duration(r.seconds)}</td><td><span class="protected">${icon('LockKeyhole')}Korumalı</span></td><td><button class="row-play" data-record="${r.id}" aria-label="${r.time} ${esc(channel(r.channel).name)} kaydını seç">${icon(state.admin?'Play':'LockKeyhole')}</button></td></tr>`).join('');}
+function archiveView(){return heading('Kayıt arşivi','Tamamlanan çağrıları tarih, başlık veya kimlikle bulun.',badge('Korumalı kayıtlar','green'))+
+ (!state.admin?notice('Dinlemek için yönetici yetkisi gerekli','Kayıtları arayabilir ve ayrıntılarını inceleyebilirsiniz. Ses, aynı Windows hesabıyla yönetici olarak açılan Radia içinde dinlenir.','blue'):'')+
+ `<div class="archive-filters">${field('Başlık, kanal veya ID',input('archive-search',state.archive.query,'search','placeholder="Örn. Devriye 02 veya 1002"'))}${field('Tarih / YYYY-AA-GG',input('archive-date',state.archive.date,'text','inputmode="numeric" placeholder="2026-09-12"'))}${field('Slot türü',`<select id="archive-slot"><option value="">Tümü</option><option value="p1">Fiziksel 1</option><option value="p2">Fiziksel 2</option><option value="p3">Fiziksel 3</option><option value="lane">Yalnız çözücü kanalı</option><option value="none">Slot yok</option></select>`)}${button('Temizle','reset-filters','RotateCcw')}</div>`+
+ `<div class="archive-workspace"><section class="recent-panel"><div class="panel-heading"><h2>Konuşma kayıtları <span id="archive-count" class="count-badge"></span></h2><span class="helper">En yeni önce</span></div><div class="table-wrap archive-table">${recordsTable(records)}</div><div id="archive-caption" class="archive-caption"></div></section><aside class="detail-panel archive-detail" id="record-detail">${recordDetail(record(state.record))}</aside></div><div id="player-container">${player()}</div>`;}
+function filterRecords(){
+ const a=state.archive,rows=records.filter(r=>(!a.date||a.date==='2026-09-12')&&(!a.slot||(a.slot[0]==='p'?r.physicalSlot===Number(a.slot[1]):a.slot==='lane'?r.physicalSlot==null&&r.decoderLane!=null:r.physicalSlot==null&&r.decoderLane==null))&&low([r.alias,r.radio,r.target,channel(r.channel).name,r.mode].join(' ')).includes(low(a.query)));
+ if(!$('archive-rows'))return;$('archive-slot').value=a.slot;
+ $('archive-rows').innerHTML=rows.length?recordRows(rows):'<tr><td colspan="8"><div class="empty"><h3>Kayıt bulunamadı</h3><p>Örnek kayıtlar 12.09.2026 tarihindedir. Filtreleri genişletin.</p></div></td></tr>';
+ $('archive-count').textContent=rows.length;$('archive-caption').textContent=`${rows.length} temsili kayıt · En fazla 1.000 sonuç · Seçili kayıt filtre değişiminde korunur`;mountIcons($('archive-rows'));
 }
-function recordsTable(items, compact=false) {
-  return '<table><thead><tr><th>Saat</th><th>Kanal</th><th>Konuşan / ID</th>' + (compact?'<th>Grup / Slot</th>':'<th>Grup</th><th>Slot</th>') + '<th>Süre</th><th>Durum</th><th><span class="muted">Dinle</span></th></tr></thead><tbody id="' + (compact?'recent-rows':'archive-rows') + '">' + recordRows(items,compact) + '</tbody></table>';
+function recordDetail(r){return `<div class="detail-header"><strong>Kayıt ayrıntıları</strong>${icon('LockKeyhole')}</div><div class="detail-body"><h3>${esc(r.alias||channel(r.channel).name)}</h3><p class="detail-subtitle">12.09.2026 · ${r.time}</p>${dl([['Kaynak ID',r.radio??(r.mode==='NFM'?'—':'Bilinmiyor')],[r.callType==='private'?'Özel hedef':'Grup ID',r.target??'—'],['Fiziksel slot',r.physicalSlot??'—'],['Çözücü kanalı',r.decoderLane??'—'],['Çözülen protokol',r.mode],['Süre',duration(r.seconds)]])}<p class="detail-note">${r.mode==='DMR'?'Çağrı sonunda arşive aktarıldı. ':''}Dosya durumu: tamamlandı ve korumalı.<br>Kaynak: USB · RTL-SDR 01</p></div>`;}
+function player(){const r=record(state.record),error=state.scenario==='file-error';return `<section class="player ${error?'error':''}"><div class="player-file">${icon(error?'CircleAlert':'LockKeyhole')}<div><h2>${esc(r.alias||channel(r.channel).name)} <span class="muted">/ seçili kayıt</span></h2><p class="filename">${filename(r)}</p></div><span class="mono">${duration(r.seconds)}</span></div>${error?notice('Kayıt çözülemedi','Örnek hata: Windows kullanıcı bağlamı bu dosyanın koruma anahtarına erişemiyor. Dosya korunur; eksik kayıt olarak etiketlenmez.','red'):''}<div class="player-controls"><button class="button primary" data-action="playback" ${!state.admin||error?'disabled':''}>${icon('Play')}${state.playing?'Baştan dinle':'Seçili kaydı dinle'}</button><button class="button" data-action="stop-playback" ${!state.playing?'disabled':''}>${icon('Square')}Sesi kes</button><span class="player-status">${!state.admin?'Dinleme kilitli · Windows yönetici yetkisi gerekli':state.playing?'Dinleme görünümü · temsili, gerçek ses yok':'Dinlemeye hazır · örnek dosya'}</span>${button('Kayıt ayrıntısı','record-info','List','subtle')}${button('Koruma bilgisi','protection','CircleHelp','subtle')}</div></section>`;}
+function selectRecord(id,play=false){state.record=Number(id);state.playing=Boolean(play&&state.admin&&state.scenario!=='file-error');if(state.view!=='archive'){navigate('archive');return;}$('record-detail').innerHTML=recordDetail(record(id));$('player-container').innerHTML=player();filterRecords();mountIcons();}
+function mapView(){
+ const empty=state.scenario==='map-empty',stale=state.scenario==='map-stale',tile=state.scenario==='map-tile';
+ return heading('Harita','Son geçerli telsiz konumu · çevrimdışı sunum görünümü',badge('SUNUM / DEMO','blue'))+
+ `<div class="map-toolbar"><span>${icon('MapPin')}<b>Türkiye / bölge görünümü</b></span><span class="helper">Natural Earth · şematik altlık</span><div class="heading-actions">${button('Ülke görünümü','map-country','RotateCcw')}${button('Son konuma git','map-locate','MapPin')}${button('Konum kartı','map-info','PanelRightClose')}</div></div>`+
+ (empty?notice('Henüz geçerli konum mesajı yok','Alıcıyı açmak bu ekranın görevi değildir. Geçerli mesaj geldiğinde son konum burada görünür.','blue'):stale?notice('Son konum güncel değil','Son geçerli mesaj 42 dakika önce alındı. Geçersiz yeni veri eski noktayı değiştirmez.','amber'):tile?notice('Bu yakınlıkta harita karosu bulunamadı','Alt katman kullanılırsa görüntü bulanık olabilir. Önizlemede yalnız şematik ülke altlığı gösteriliyor.','amber'):'')+
+ `<div class="map-workspace"><section class="map-stage" id="map-stage" aria-label="Çevrimdışı temsili harita"><svg id="map-svg" role="img" aria-label="Türkiye coğrafi altlığı ve tek temsili konum"></svg><div class="map-attribution">Natural Earth · 1:110m · sokak / uydu haritası değildir</div><div class="map-zoom">${button('+','map-plus','', 'zoom-button')}${button('−','map-minus','', 'zoom-button')}<span id="map-zoom-label"></span></div><div class="map-north">K<span>↑</span></div><div class="map-scale" id="map-scale"></div>${!empty?'<img id="radio-marker" src="assets/telsiz-ikonu.webp" alt="Son geçerli konumdaki telsiz" draggable="false">':''}<span class="map-demo-label">TEMSİLİ KONUM</span></section>${state.mapInfo?`<aside class="detail-panel map-info"><div class="detail-header"><strong>Son geçerli konum</strong><button class="icon-button" data-action="map-info" aria-label="Konum kartını kapat">${icon('X')}</button></div><div class="detail-body"><span class="detail-eyebrow">TEK TELSİZ · SON MESAJ</span><h3>${empty?'Konum bekleniyor':'Devriye 02'}</h3><p class="detail-subtitle">${empty?'Geçerli veri yok':'Kaynak ID 1002 · DMR'}</p><div class="location-age ${stale?'amber':''}">${icon('Clock3')}<div><strong>${empty?'—':stale?'42 dakika önce':'2 dakika 18 saniye önce'}</strong><small>PC tarafından alınma yaşı · temsili</small></div></div>${dl([['Enlem',empty?'—':'39.00000° N'],['Boylam',empty?'—':'35.00000° E'],['Mesaj zamanı',empty?'—':'14:29:56'],['PC alma zamanı',empty?'—':'14:30:00'],['Özel hedef',empty?'—':'9005'],['Alınan CC',empty?'—':'1'],['Çözücü kanalı',empty?'—':'1 (çözücü)'],['Fiziksel slot','Bilinmiyor']])}<p class="detail-note">${empty?'Son konum önbelleği de boş.':'Yalnız son geçerli nokta gösterilir. Sürekli GPS takibi veya rota geçmişi değildir.'} Bu görünüm alımı başlatmaz ve durdurmaz.</p></div></aside>`:''}</div><div class="map-footer"><span>Paket alanı: şematik altlık · gerçek karo paketi yüklenmedi</span><span>${empty?'Son konum yok':'39.00000, 35.00000 · temsili'}</span></div>`;
 }
-function recordRows(items,compact=false) {
-  return items.map(r => {
-    const c=lookup(r.channel);
-    return '<tr data-record-row="' + r.id + '" class="' + (state.record===r.id&&!compact?'selected':'') + '"><td class="mono">' + r.time + '</td><td class="table-channel">' + escapeHtml(c.name) + '<small>' + c.mode + '</small></td><td>' + escapeHtml(r.caller || 'Analog çağrı') + '<span class="muted">' + (r.radio?' · '+r.radio:'') + '</span></td>' + (compact?'<td>' + (r.group?'TG '+r.group+' · Slot '+r.slot:'—') + '</td>':'<td>' + escapeHtml(r.group) + '</td><td>' + escapeHtml(r.slot) + '</td>') + '<td class="mono">' + duration(r.seconds) + '</td><td><span class="table-status">' + icon('CheckCheck') + 'Kaydedildi</span></td><td><button class="row-play" data-play-record="' + r.id + '" aria-label="' + escapeHtml(r.time+' '+c.name+' kaydını seç ve oynatımı önizle') + '">' + icon('Play') + '</button></td></tr>';
-  }).join('');
+function mapProject(lon,lat,w,h){const scale=w/(23/state.mapZoom);return [(lon-state.mapCenter[0])*scale+w/2,(state.mapCenter[1]-lat)*scale/Math.cos(39*Math.PI/180)+h/2];}
+function paintMap(){
+ const svg=$('map-svg');if(!svg)return;const stage=$('map-stage'),w=stage.clientWidth,h=stage.clientHeight;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);
+ const project=([x,y])=>mapProject(x,y,w,h),point=p=>p.map(v=>v.toFixed(1)).join(',');
+ let content='<rect width="100%" height="100%" fill="#dce9ee"/>';
+ for(let lon=20;lon<=50;lon+=2){let a=project([lon,20]),b=project([lon,60]);content+=`<path d="M${point(a)}L${point(b)}" stroke="#c4d6df" fill="none"/><text x="${a[0]+5}" y="${h-28}" class="map-grid-label">${lon}° E</text>`;}
+ for(let lat=28;lat<=50;lat+=2){let a=project([15,lat]),b=project([55,lat]);content+=`<path d="M${point(a)}L${point(b)}" stroke="#c4d6df" fill="none"/>`;}
+ for(const country of window.RADIA_MAP||[]){const d=country.coordinates.flatMap(poly=>poly.map(ring=>'M'+ring.map(p=>point(project(p))).join('L')+'Z')).join('');content+=`<path d="${d}" fill="${country.id==='TUR'?'#f5f4e9':'#e8e9e3'}" stroke="#adbfbd" stroke-width="1.1"/>`;}
+ const cities=[['İstanbul',28.97,41.01],['Ankara',32.85,39.93],['İzmir',27.14,38.42],['Konya',32.48,37.87],['Antalya',30.71,36.90],['Samsun',36.33,41.29],['Erzurum',41.27,39.91],['Diyarbakır',40.21,37.91],['Van',43.37,38.49]];
+ cities.forEach(([name,lon,lat])=>{const [x,y]=project([lon,lat]);content+=`<circle cx="${x}" cy="${y}" r="3" fill="#829b9a"/><text x="${x+8}" y="${y+4}" class="map-city">${name}</text>`;});
+ const seas=[['KARADENİZ',35.1,42.2],['AKDENİZ',30.4,35.5]];seas.forEach(([t,lon,lat])=>{const [x,y]=project([lon,lat]);content+=`<text x="${x}" y="${y}" class="map-sea">${t}</text>`;});
+ const [x,y]=project([35,39]),marker=$('radio-marker');
+ if(marker){const mh=Math.max(44,Math.min(192,80+28*Math.log2(state.mapZoom)));const visible=x>=0&&x<=w&&y>=0&&y<=h;marker.hidden=!visible;marker.style.height=mh+'px';marker.style.left=x+'px';const bottom=Math.max(mh+10,y);marker.style.top=bottom+'px';marker.dataset.anchor=`${x},${y}`;content+=`<circle cx="${x}" cy="${y}" r="7" fill="#ac3049" stroke="#fff" stroke-width="3"/>`;if(bottom!==y)content+=`<path d="M${x},${bottom}L${x},${y}" stroke="#ac3049" stroke-width="2"/>`;}
+ svg.innerHTML=content;$('map-zoom-label').textContent=state.mapZoom.toFixed(1)+'×';
+ const km=100*(23/state.mapZoom)/w*111.32*Math.cos(39*Math.PI/180);$('map-scale').innerHTML=`<span></span>≈ ${Math.round(km)} km`;
 }
-function archiveView() {
-  return heading('Kayıt arşivi','Çağrıyı bulun. Bağlamıyla inceleyin. Tek noktadan dinleyin.',
-    '<span class="small-pill">12 Eylül 2026</span>') +
-    '<div class="archive-filters"><label class="field grow">Başlık, kişi, kanal veya ID<input id="archive-search" placeholder="Örn. Devriye 02 veya 1002" type="search"></label><label class="field">Tarih<input id="archive-date" aria-label="Kayıt tarihi" type="date" value="2026-09-12"></label><label class="field">Slot<select id="archive-slot" aria-label="Slot filtresi"><option value="">Tümü</option><option value="1">Slot 1</option><option value="2">Slot 2</option><option value="analog">Analog / yok</option></select></label>' + button('Temizle','reset-filters','RotateCcw') + '</div>' +
-    (state.direction==='review'?timeline():'') +
-    '<div class="archive-workspace"><div class="archive-main"><section class="recent-panel"><div class="panel-heading"><div class="section-label"><h2>Konuşma kayıtları</h2><span class="count-badge" id="archive-count">9</span></div><div class="archive-stats"><span>En yeni önce</span><span><b id="total-duration">02:38</b> toplam</span></div></div><div class="table-wrap">' + recordsTable(records) + '</div><div class="archive-caption" id="archive-caption">9 örnek kayıt · Kaydı seçin veya oynatma düğmesine basın.</div></section><div id="player-container">' + player() + '</div></div><aside class="detail-panel" id="record-detail">' + recordDetail(records.find(r=>r.id===state.record)) + '</aside></div>';
+function zoomMap(factor){state.mapZoom=Math.max(.5,Math.min(11,state.mapZoom*factor));paintMap();}
+function logsView(){return heading('Dijital veri günlüğü','Çözücü metni, kimlik olayları ve mesaj kategorileri.',badge('Son oturumlar · en fazla 1.000 satır'))+
+ `<div class="log-filters">${field('Yeni satırlarda metin filtresi',input('log-search',state.logFilter,'search','placeholder="Örn. GPS, ID veya sync"'))}${field('Yeni satırlarda kategori',`<select id="log-category"><option value="all" ${state.logCategory==='all'?'selected':''}>Tümü</option>${options(['Ses','Kimlik','Sistem','Konum / SDS'],state.logCategory)}</select>`)}<span class="helper">Filtre değişikliği yeni gelen satırlara uygulanır.<br>Görünen geçmiş satırlar silinmez.</span></div><section class="log-console"><div class="log-heading"><span><i class="dot blue"></i> Çözücü olayları</span><span>PC zamanı / yerel gösterim</span></div><div class="table-wrap"><table><thead><tr><th>Saat</th><th>Protokol / kanal</th><th>Kategori</th><th>Çözücü metni</th></tr></thead><tbody id="log-rows">${logRowHTML()}</tbody></table></div><div class="log-status"><span id="log-count">${logRows.length} temsili satır</span><span>UTC kaydı → yerel saat gösterimi</span></div></section><div class="notice blue"><div><strong>Etiket, doğrulama sonucu değildir</strong><p>GPS / SDS kategorisi geçerli koordinat kanıtı sayılmaz. Bu ekran çözücünün sunduğu metni gösterir; ham RF/IQ veya bütün protokol bitleri değildir.</p></div></div><div class="prototype-control"><span>ETKİLEŞİM ÖRNEĞİ</span>${button('Örnek GPS satırı ekle','log-gps','List')}${button('Örnek ses satırı ekle','log-voice','AudioLines')}<small id="log-sample-result">Gerçek günlük dosyası okunmaz.</small></div>`;}
+function logRowHTML(){return logRows.map(r=>`<tr><td class="mono">${r.time}</td><td>${r.mode}<small class="cell-secondary">${esc(r.channel)}</small></td><td>${badge(r.category)}</td><td class="raw-line">${esc(r.text)}</td></tr>`).join('');}
+function appendLog(gps){const row={time:'14:32:18',mode:'DMR',channel:'Güvenlik',category:gps?'Konum / SDS':'Ses',text:gps?'[TEMSİLİ] GPS/SDS metni alındı; konum geçerliliği henüz doğrulanmadı':'[TEMSİLİ] Voice sync; source=1002; konuşma sürüyor'};const match=low(row.text).includes(low(state.logFilter))&&(state.logCategory==='all'||state.logCategory===row.category);if(match){logRows.unshift(row);logRows.splice(1000);$('log-rows').innerHTML=logRowHTML();$('log-count').textContent=logRows.length+' temsili satır';mountIcons($('log-rows'));}$('log-sample-result').textContent=match?'Örnek yeni satır eklendi.':'Yeni satır filtre dışında kaldı; geçmiş korundu.';}
+function sourcesView(){
+ const tabs=[['receiver','Alıcı ayarları'],['devices','SDR cihazları'],['hytera','Hytera Ethernet']];
+ return heading('Kaynaklar ve ayarlar','Seçili cihaz, alım parametreleri ve ağ yapılandırması.')+`<div class="tabs" role="tablist">${tabs.map(([id,label])=>`<button role="tab" aria-selected="${state.sourcesTab===id}" data-tab="${id}">${label}</button>`).join('')}</div>`+({receiver:receiverSettings,devices:deviceSettings,hytera:hyteraSettings})[state.sourcesTab]();
 }
-function timeline() {
-  return '<section class="review-timeline"><div class="timeline-top"><strong>Çağrı zaman çizelgesi</strong><span class="muted">14:20 — 14:32 · Örnek çağrı dağılımı</span></div>' +
-    ['Güvenlik','Teknik ekip','Analog kanallar'].map((name,i)=>'<div class="timeline-track"><span>'+name+'</span><div class="timeline-track-area">'+[4,19,43,63,85].slice(i,5).map((n,j)=>'<span class="timeline-block '+(i===1?'burgundy':'')+'" style="left:'+(n-i*2)+'%;width:'+(2+j%3)+'%"></span>').join('')+'</div></div>').join('') + '</section>';
+function receiverSettings(){const busy=state.owner!=='none';return `<div class="settings-grid"><section class="panel"><div class="panel-heading"><h2>Alıcı bağlantısı</h2>${badge(busy?'Kullanımda':'Boşta',busy?'blue':'neutral')}</div><div class="panel-body"><div class="form-grid">${field('Kaynak türü',select('source-type',['USB','rtl_tcp'], 'USB',busy?'disabled':''))}${field('Seçili cihaz',input('selected-device','RTL-SDR 01','text','disabled'))}${field('rtl_tcp sunucu adresi',input('tcp-address','127.0.0.1','text',busy?'disabled':''))}${field('rtl_tcp portu',input('tcp-port',1234,'number',busy?'disabled':''))}${field('PPM düzeltme',input('source-ppm',state.ppm,'number',busy?'disabled':''))}${field('Alım biçimi',`<select id="source-mode" ${busy?'disabled':''}><option value="fixed" ${state.receiveMode==='fixed'?'selected':''}>Sabit / bant içi</option><option value="scan" ${state.receiveMode==='scan'?'selected':''}>Sıralı tarama</option></select>`)}</div><p class="helper">Bağlantı ve kanal yapılandırmasını değiştirmek için alımı durdurun. Gain / Tuner AGC desteklenen canlı kontrol yolunu kullanır.</p><button class="button primary" data-action="save-source" ${busy?'disabled':''}>Ayarları uygula</button></div></section><section class="panel"><div class="panel-heading"><h2>Kazanç ve tarama</h2></div><div class="panel-body"><div class="form-grid">${field('İstenen RF kazancı / dB',input('source-gain',state.gain,'number','min="0" max="50"'))}${field('Kazanç kontrolü',select('source-agc',['Manuel','Tuner AGC'],state.agc?'Tuner AGC':'Manuel'))}${field('Kanalı dinle / saniye',input('scan-dwell',1,'number','min="0.1" step="0.1"'))}${field('Eşik altı bekle / saniye',input('scan-wait',1,'number','min="0.1" step="0.1"'))}</div>${button('Kazancı uygula','apply-source-gain','SlidersHorizontal')}<p class="helper">Uygulanan değer: ${state.agc?'Tuner AGC':state.gainApplied+' dB'} · temsili. Donanımın desteklediği en yakın değer ayrı gösterilmelidir. Tuner AGC, ses AGC’si değildir.</p></div></section><section class="panel wide"><div class="panel-heading"><h2>Kayıt davranışı</h2>${badge('Mevcut kural')}</div><div class="policy-row"><div><b>90 sn</b><span>En fazla kayıt bölümü</span></div><div><b>2 sn</b><span>Süre sınırında kayıt arası</span></div><p>DMR / APCO25 / NXDN bölümleri, çözücü dosyayı çağrı sonunda teslim ettiğinde arşive girer. Doğal çağrı sonu ayrıca 2 saniye bekleme oluşturmaz.</p></div></section></div>`;}
+function deviceSettings(){return (sourceUnavailable()?notice(state.scenario==='missing'?'Seçili cihaz bulunamadı':'Seçili cihaz meşgul',state.scenario==='missing'?'USB bağlantısını kontrol edin ve envanteri yenileyin.':'Listelenmesi boşta olduğunu göstermez. Aynı cihazı kullanan diğer uygulamayı kontrol edin.','red'):'')+`<section class="panel"><div class="panel-heading"><h2>USB envanteri</h2>${button('Listeyi yenile','refresh-devices','RotateCcw')}</div><div class="table-wrap"><table><thead><tr><th>Seçim</th><th>USB ürün adı</th><th>Tuner</th><th>Seri no</th><th>İndeks</th><th>Kullanım</th></tr></thead><tbody>${state.scenario==='missing'?'<tr><td colspan="6"><div class="empty">Cihaz bulunamadı</div></td></tr>':`<tr class="selected"><td>Seçili</td><td>RTL2838UHIDIR<small class="cell-secondary">RTL-SDR 01 · temsili envanter</small></td><td>E4000</td><td class="mono">DEMO-0001</td><td>0</td><td>${state.scenario==='busy'?'Başka uygulama':ownerLabel()}</td></tr>`}</tbody></table></div><div class="archive-caption">Envanter anlık görüntüdür; hotplug izleyicisi değildir. Benzersiz seri ile yeniden eşleştirme; yinelenen seride indeks kontrolü.</div></section><div class="ownership"><div>${icon('Usb')}<strong>Tek seçili USB</strong></div>${['radio','fm','spectrum'].map(v=>`<span class="ownership-job ${state.owner===v?'active':''}">${({radio:'Kanal alımı',fm:'FM RADIO',spectrum:'Spektrum'})[v]}${state.owner===v?' · kullanıyor':''}</span>`).join('')}</div><p class="helper">Bu üç iş aynı fiziksel cihazı paylaşır. Bağımsız çoklu SDR işçileri sonraki aşamadır.</p>`;}
+function hyteraSettings(){return notice('Çevrimdışı yapılandırma','Ayar kaydı, repeater bağlantısı veya IP ses alımı anlamına gelmez. HR659 IP ses sürücüsü henüz entegre değil.','blue')+`<section class="panel hytera-panel"><div class="panel-heading"><h2>Hytera HR659 / UHF</h2>${badge('Bağlantı kurulmadı')}</div><div class="panel-body"><div class="form-grid">${field('PC IPv4',input('hytera-pc','','text','placeholder="Hazırlık için boş bırakılabilir"'))}${field('Repeater IPv4',input('hytera-ip','','text','placeholder="Henüz bağlanmadı"'))}${field('Slot 1 kontrol portu',input('hytera-c1',30009,'number'))}${field('Slot 2 kontrol portu',input('hytera-c2',30010,'number'))}${field('Slot 1 ses portu',input('hytera-v1',30012,'number'))}${field('Slot 2 ses portu',input('hytera-v2',30014,'number'))}</div><p class="helper">Portlar doğrulanmamış örneklerdir. rtl_tcp ham IQ bağlantısı bu entegrasyondan ayrıdır.</p>${button('Yapılandırmayı kaydet','save-hytera','Check')}<span id="hytera-result" class="helper"></span></div></section>`;}
+function directoryView(){return heading('Kimlik rehberi','Kaynak ve hedef kimlikleri için sistem kapsamında görünen adlar.')+`<section class="panel"><div class="panel-heading"><h2>Demo tesis</h2>${badge('Sistem / müşteri kapsamı')}</div><div class="table-wrap"><table><thead><tr><th>Tür</th><th>ID</th><th>Görünen ad</th><th>Kapsam</th><th></th></tr></thead><tbody>${[['Telsiz',1002,'Devriye 02'],['Telsiz',2003,'Teknik 03'],['Grup',101,'Güvenlik ekibi'],['Grup',201,'Teknik ekip']].map(([type,id,name])=>`<tr><td>${type}</td><td class="mono">${id}</td><td>${name}</td><td>Demo tesis</td><td><button class="button" data-alias="${id}">İncele</button></td></tr>`).join('')}</tbody></table></div></section><p class="helper space-top">Bilinmeyen ID için ad üretilmez. Özel çağrının hedef ID’si grup kimliği değildir. Aynı ID başka sistemlerde ayrı eşleşebilir.</p>`;}
+function aboutView(){return heading('BİEM Radia','VHF / UHF izleme ve kayıt çalışma alanı.')+`<section class="panel about-panel"><img src="assets/biem-logo.png" alt="Biem Elektronik"><h2>BİEM Teknoloji Elektronik</h2><p>Operasyon arayüzü · 12 Eylül 2026 güncel tasarım brifi</p><a href="https://biemelektronik.com/" target="_blank" rel="noopener">biemelektronik.com ${icon('ArrowUpRight')}</a><p class="helper">Bu paket Python / Tkinter / ttk uygulamasına görsel referanstır. Üstteki senaryo ve yönetici seçenekleri yalnız önizleme içindir; gerçek uygulama kontrolü değildir.</p></section>`;}
+function renderFM(){const p=$('fm-panel');p.hidden=!state.fmOpen;if(!state.fmOpen)return;p.innerHTML=`<div class="panel-heading"><h2>FM RADIO</h2><button class="icon-button" data-action="fm-panel" aria-label="FM panelini gizle">${icon('ChevronDown')}</button></div><div class="fm-body"><div class="fm-frequency"><b id="fm-value">${state.fmFrequency.toFixed(1)}</b><span>MHz</span>${badge('WFM · mono')}</div><label class="field"><span>88,5–108 MHz · 100 kHz adım</span><input id="fm-frequency" type="range" min="88.5" max="108" step="0.1" value="${state.fmFrequency}" aria-label="FM frekansı"></label><div class="detail-actions">${button(state.owner==='fm'?'Dinleniyor':'Dinlemeyi başlat','fm-start','Play')}${button('Kapat','fm-stop','Square')}</div><p class="helper">${state.owner==='fm'?'FM RADIO cihazı kullanıyor.':'Seçili USB paylaşılır; gerekirse mevcut iş güvenle durdurulur.'} Kayıt alınmaz. Paneli gizlemek sesi durdurmaz; Kapat durdurur.</p></div>`;mountIcons(p);}
+const spectrumPeaks=[{frequency:460.100,level:-36},{frequency:460.263,level:-29},{frequency:460.414,level:-41},{frequency:460.628,level:-24},{frequency:460.777,level:-37},{frequency:460.902,level:-44}];
+function spectrumView(){const s=state.spectrum;return heading('Spektrum / şelale','Yönetici ölçümü · FFT bin seviyesi / dBFS',`<button class="button primary" data-action="measurement" ${!state.admin||sourceUnavailable()?'disabled':''}>${icon(state.owner==='spectrum'?'Square':'Activity')}${state.owner==='spectrum'?'Ölçümü durdur':'Ölçümü başlat'}</button>`)+
+ (!state.admin?notice('Ölçüm için Windows yönetici yetkisi gerekli','Normal süreç ölçüm başlatamaz. Yönetici açılışı Windows UAC üzerinden yapılır; bu önizleme yetki yükseltmez.','blue'):state.owner==='radio'||state.owner==='fm'?notice(`${ownerLabel()} seçili USB cihazını kullanıyor`,'Ölçüme geçişte mevcut iş güvenle sonlandırılır. Spektrum ölçümü konuşma kaydetmez.','amber'):'')+
+ `<div class="spectrum-toolbar">${field('Başlangıç / MHz',input('spec-start',s.start,'number','step="0.001"'))}${field('Bitiş / MHz',input('spec-end',s.end,'number','step="0.001"'))}${field('FFT penceresi',select('spec-window',['Hann','Hamming','Blackman','Dikdörtgen'],s.window))}${field('Ortalama / tarama',select('spec-average',[1,2,4,8],s.average))}${field('Gösterim',`<select id="spec-display"><option value="both" ${s.display==='both'?'selected':''}>Spektrum + şelale</option><option value="spectrum" ${s.display==='spectrum'?'selected':''}>Spektrum</option><option value="waterfall" ${s.display==='waterfall'?'selected':''}>Şelale</option></select>`)}${button('Bandı uygula','spec-apply')}<span id="spec-error" class="form-error" role="alert"></span></div>`+
+ `<div class="spectrum-workspace"><aside class="spectrum-side"><h3>SEVİYE</h3>${verticalSlider('spec-threshold','Tepe eşiği',-90,-10,s.threshold,'dBFS')}${verticalSlider('spec-top','Üst seviye',-60,0,s.top,'dBFS')}${verticalSlider('spec-range','Aralık',20,100,s.range,'dB')}${button('Otomatik','spec-auto','RotateCcw','compact')}</aside><section class="spectrum-board"><div class="spectrum-board-heading"><span><i class="dot ${state.owner==='spectrum'?'blue':'neutral'}"></i>${state.owner==='spectrum'?'Ölçüm görünümü (temsili)':'Ölçüm durdu · örnek grafik'}</span><span>960 kS/s · FFT 2048 · ≈468,75 Hz/bin</span></div><svg id="spectrum-svg" role="img" aria-label="Temsili spektrum ve şelale"></svg><div class="spectrum-readout"><span id="spectrum-cursor">Fare: frekans / seviye · sol tık tepeye kilitler</span><span id="spectrum-lock">Kilit yok</span></div></section><aside class="spectrum-side zoom-side"><h3>GÖRÜNÜM</h3>${verticalSlider('spec-zoom','Yakınlık',1,20,s.zoom,'×')}<label class="field"><span>Merkez / MHz</span><input id="spec-center" type="number" step="0.001" min="${s.start}" max="${s.end}" value="${s.center}"></label>${field('İşaretçi / kHz',select('spec-marker',[6.25,12.5,25,200],s.marker))}${button('Tüm bant','spec-reset','RotateCcw','compact')}</aside></div>`+
+ `<div class="spectrum-bottom"><section class="panel peak-panel"><div class="panel-heading"><h2>Eşik üstü belirgin tepeler</h2><label class="checkbox"><input type="checkbox" id="spec-hold" ${s.peakHold?'checked':''}>Tepe tut</label>${button('Sıfırla','spec-clear')}</div><div id="peak-list" class="peak-list"></div></section><section class="panel spectrum-options"><div class="panel-body">${field('Retune bekleme',select('spec-settle',['Hızlı · 60 ms','Dengeli · 120 ms','Kararlı · 250 ms'],s.settle))}${button('Görünür bandı ölçüme al','spec-visible','Activity')}${button('Kilit çevresi / 250 kHz','spec-lock-band','Search')}<p class="helper">Bant değiştirme durdurulmuş ölçümde hazırlanır. Zoom RF çözünürlüğünü değiştirmez; işaretçi genişliği RF filtresi değildir.</p></div></section></div><p class="helper space-top">Turuncu çizgi tepe eşiğidir; kanal squelch eşiğinden ayrıdır. FFT tepesinden protokol doğrulanmaz. Şelalede her 3 piksel bir tam taramadır; yeni tarama üsttedir. Grafik yeniden çizimi yeni ölçüm oluşturmaz.</p>`;}
+function verticalSlider(id,label,min,max,value,unit){return `<label class="vertical-control"><span>${label}</span><input id="${id}" type="range" min="${min}" max="${max}" value="${value}" aria-label="${label}"><output id="${id}-value">${value} ${unit}</output></label>`;}
+function spectrumBounds(){const s=state.spectrum,width=(s.end-s.start)/s.zoom;const center=Math.max(s.start+width/2,Math.min(s.end-width/2,s.center));return [center-width/2,center+width/2];}
+function spectrumLevel(f){return Math.min(-14,-70+2.1*Math.sin(f*3250)+1.8*Math.cos(f*5500)+spectrumPeaks.reduce((v,p)=>v+(p.level+70)*Math.exp(-Math.pow((f-p.frequency)/.003,2)),0));}
+function paintSpectrum(){
+ const svg=$('spectrum-svg');if(!svg)return;const s=state.spectrum,[lo,hi]=spectrumBounds();const x=f=>50+(f-lo)/(hi-lo)*920,y=db=>Math.max(14,Math.min(230,14+(s.top-db)/s.range*216));
+ let plot='';for(let i=0;i<5;i++){let yy=14+i*54;plot+=`<path d="M50,${yy}H970" stroke="#33465b"/><text x="39" y="${yy+4}" text-anchor="end" class="chart-label">${Math.round(s.top-i*s.range/4)}</text>`;}
+ for(let i=0;i<=5;i++){const f=lo+(hi-lo)*i/5,xx=x(f);plot+=`<path d="M${xx},14V420" stroke="#263e54"/><text x="${xx}" y="253" text-anchor="${i===0?'start':i===5?'end':'middle'}" class="chart-label">${f.toFixed(5)}</text>`;}
+ const points=Array.from({length:1000},(_,i)=>{let f=lo+(hi-lo)*i/999;return x(f).toFixed(2)+','+y(spectrumLevel(f)).toFixed(2);}).join(' ');
+ if(s.display!=='waterfall')plot+=`<polyline points="${points}" fill="none" stroke="#76d5b7" stroke-width="1.4"/><path d="M50,${y(s.threshold)}H970" stroke="#e5a455" stroke-dasharray="7 5"/><text x="965" y="${y(s.threshold)-7}" text-anchor="end" fill="#edb973" font-size="12">Tepe eşiği ${s.threshold} dBFS</text>`;
+ if(s.display!=='spectrum'){
+  const stops=[`<stop offset="0%" stop-color="#122b42"/>`,`<stop offset="100%" stop-color="#122b42"/>`];
+  const colorStops=[];spectrumPeaks.forEach(p=>{const pct=(p.frequency-lo)/(hi-lo)*100,spread=.006/(hi-lo)*100;if(pct>-spread&&pct<100+spread)colorStops.push([Math.max(0,pct-spread),'#143b57'],[Math.max(0,pct-spread/3),'#388a99'],[Math.max(0,Math.min(100,pct)),'#74c2b4'],[Math.min(100,pct+spread/3),'#236f89'],[Math.min(100,pct+spread),'#122b42']);});
+  colorStops.sort((a,b)=>a[0]-b[0]);stops.splice(1,0,...colorStops.map(([p,c])=>`<stop offset="${p}%" stop-color="${c}"/>`));
+  plot+=`<defs><linearGradient id="water-gradient">${stops.join('')}</linearGradient></defs><rect x="50" y="268" width="920" height="152" fill="#0a1524"/>`;
+  for(let i=0;i<39;i++)plot+=`<rect x="50" y="${268+i*3}" width="920" height="3" fill="url(#water-gradient)" opacity="${.58+.15*Math.sin(i*.9)}"/>`;
+  plot+='<text x="62" y="410" class="chart-label">Ölçülmemiş geçmiş / koyu alan</text>';
+ }
+ if(s.lock!=null&&s.lock>=lo&&s.lock<=hi){const xx=x(s.lock),width=Math.max(1,s.marker/1000/(hi-lo)*920);plot+=`<rect x="${Math.max(50,xx-width/2)}" y="14" width="${Math.min(width,970-Math.max(50,xx-width/2))}" height="406" fill="#6eacf5" opacity=".16"/><path d="M${xx},14V420" stroke="#88b9f7"/>`;}
+ svg.setAttribute('viewBox','0 0 1000 440');svg.innerHTML=plot;
+ $('spectrum-lock').textContent=s.lock==null?'Kilit yok':s.lock.toFixed(5)+' MHz · sağ tık bırakır';
+ $('peak-list').innerHTML=spectrumPeaks.filter(p=>p.frequency>=lo&&p.frequency<=hi&&p.level>=s.threshold).sort((a,b)=>b.level-a.level).map(p=>`<button class="peak" data-peak="${p.frequency}"><b class="mono">${p.frequency.toFixed(5)}</b><span>${p.level} dBFS</span></button>`).join('')||'<span class="helper">Görünür bantta eşik üstü tepe yok.</span>';
+ mountIcons();
 }
-function filterRecords() {
-  const term=lower(document.getElementById('archive-search')?.value), day=document.getElementById('archive-date')?.value, slot=document.getElementById('archive-slot')?.value;
-  const items=records.filter(r=>(!day||day==='2026-09-12')&&(!slot||(slot==='analog'?r.slot===null:r.slot===Number(slot)))&&lower([lookup(r.channel).name,r.caller,r.radio,r.group].join(' ')).includes(term));
-  const tbody=document.getElementById('archive-rows');if(!tbody)return;
-  tbody.innerHTML=items.length?recordRows(items):'<tr><td colspan="8"><div class="empty"><strong>Kayıt bulunamadı</strong>Örnek kayıtlar 12 Eylül 2026 tarihindedir. Filtreleri genişletin.</div></td></tr>';
-  document.getElementById('archive-count').textContent=items.length;
-  document.getElementById('total-duration').textContent=duration(items.reduce((n,r)=>n+r.seconds,0));
-  document.getElementById('archive-caption').textContent=items.length+' örnek kayıt · Seçili kayıt oynatıcıda korunur.';
-  mountIcons(tbody);
+function editChannel(id){const c=channel(id),locked=state.owner==='radio';showDrawer(`${c.name} / kanal ayarları`,`${locked?notice('Kanal düzenleme kilitli','Frekans ve protokol ayarları için kanal alımını durdurun. RF kazancı canlı kontrol çubuğundan uygulanabilir.','blue'):''}<form id="channel-form"><input id="edit-id" type="hidden" value="${c.id}"><fieldset ${locked?'disabled':''}>${field('Kanal adı',input('edit-name',c.name))}<div class="form-grid">${field('Mod',select('edit-mode',['NFM','DMR','TETRA','APCO25','NXDN'],c.mode))}${field('Frekans / MHz',input('edit-frequency',c.frequency,'number','step="0.00001" min="1"'))}${field('Kanal aralığı / kHz',select('edit-spacing',[6.25,12.5,25],12.5))}${field('RF filtre genişliği / Hz',input('edit-bandwidth',12500,'number','min="1"'))}${field('Squelch / dBFS',input('edit-squelch',-60,'number','min="-120" max="0"'))}${field('Sistem / müşteri',input('edit-scope','Demo tesis'))}</div><div id="mode-fields">${modeFields(c.mode,c.configuredCC)}</div><label class="checkbox"><input id="edit-enabled" type="checkbox" ${c.enabled?'checked':''}>Kanal etkin</label></fieldset><p id="channel-error" class="form-error" role="alert"></p></form><p class="helper">Aralık, RF filtresi ve frekans adımı ayrı kavramlardır. Bilinmeyen kimlikler ayarlardan üretilmez.</p>`,button('Vazgeç','close-drawer')+`<button class="button primary" data-action="save-channel" ${locked?'disabled':''}>Önizlemeye uygula</button>`);}
+function modeFields(mode,cc='Tümü'){
+ if(mode==='NFM')return `<div class="form-grid">${field('Ton filtresi',select('edit-tone',['CSQ','CTCSS','DCS','DCS ters'],'CSQ'))}${field('Ton / kod',input('edit-tone-value','67.0','text','placeholder="Seçilen ton türüne göre"'))}</div><p class="helper">CTCSS: standart 67–254,1 Hz. DCS ve ters DCS ayrı seçeneklerdir.</p>`;
+ const [name,max]=({DMR:['Color code',15],TETRA:['Color code',63],APCO25:['NAC / ondalık',4095],NXDN:['RAN',63]})[mode];
+ return field(`${name} · 0–${max} / boş = tümü`,input('edit-code',cc==='Tümü'?'':cc,'number',`min="0" max="${max}"`))+`<p class="helper">${mode==='TETRA'?'Ses çözümü mevcut; kesintiler ve güvenli kimlik ilişkilendirmesi için saha iyileştirmesi sürüyor.':mode==='APCO25'?'Phase 1 örnek dosyada test edildi; Phase 2 / saha kabulü yapılmış sayılmaz.':mode==='NXDN'?'NXDN96 örnek dosyada test edildi; NXDN48 / saha kabulü bekliyor.':'CC filtresi ile alınan CC ayrı gösterilir. Simplex çözücü kanalı fiziksel slot değildir.'}</p>`;
 }
-function recordDetail(r) {
-  const c=lookup(r.channel);
-  return '<div class="detail-header"><strong>Kayıt ayrıntıları</strong><span class="table-status">'+icon('Check')+'WAV</span></div><div class="detail-body"><div class="detail-eyebrow">TAMAMLANAN ÇAĞRI</div><h3>'+escapeHtml(r.caller||c.name)+'</h3><p class="detail-subtitle">'+c.name+' · 12.09.2026 / '+r.time+'</p><dl class="detail-grid"><div><dt>Telsiz ID</dt><dd>'+escapeHtml(r.radio)+'</dd></div><div><dt>Grup ID</dt><dd>'+escapeHtml(r.group)+'</dd></div><div><dt>Slot</dt><dd>'+escapeHtml(r.slot)+'</dd></div><div><dt>Kayıt süresi</dt><dd>'+duration(r.seconds)+'</dd></div><div><dt>Frekans</dt><dd>'+c.frequency+' MHz</dd></div><div><dt>Modülasyon</dt><dd>'+c.mode+'</dd></div></dl><p class="detail-note">Kaynak: USB · RTL-SDR 01<br>Mono · '+(c.mode==='NFM'?'16':'8')+' kHz · PCM<br>Örnek kayıt; gerçek ses dosyası içermez.</p>'+button('Bu kanaldaki kayıtlar','filter-current-channel','Search','subtle')+'</div>';
+function saveChannel(){if(state.owner==='radio')return;const name=$('edit-name').value.trim(),f=Number($('edit-frequency').value),form=$('channel-form');if(!name||!Number.isFinite(f)||f<=0||!form.reportValidity()){$('channel-error').textContent='Kanal adı ve geçerli frekans / filtre değerlerini kontrol edin.';return;}const c=channel($('edit-id').value);c.name=name;c.frequency=f.toFixed(5);c.mode=$('edit-mode').value;c.enabled=$('edit-enabled').checked;c.status='idle';c.radio=null;c.alias=null;c.target=null;c.targetAlias=null;c.physicalSlot=null;c.decoderLane=null;c.cc=null;c.configuredCC=$('edit-code')?.value||'Tümü';$('drawer').close();render();toast('Yalnız önizleme güncellendi; dosya veya alıcı ayarı değiştirilmedi.');}
+function applyScenario(name){
+ state.scenario=name;state.owner=['missing','busy'].includes(name)?'none':'radio';state.receiveMode=name==='scan'?'scan':'fixed';state.playing=false;
+ const c=channel(1);Object.assign(c,{callType:name==='simplex'?'private':'group',target:name==='simplex'?9005:101,targetAlias:name==='simplex'?'Özel çağrı':'Güvenlik ekibi',physicalSlot:name==='simplex'?null:1,decoderLane:1});
+ if(name==='file-error')state.view='archive';else if(name.startsWith('map-'))state.view='map';else if(['missing','busy'].includes(name)){state.view='sources';state.sourcesTab='devices';}else state.view='live';render();
 }
-function waveform() {
-  return Array.from({length:150},(_,i)=>'<span style="height:'+(7+Math.abs(Math.sin(i*1.7)*Math.cos(i*.29))*64*(i%33<4?.16:1))+'px"></span>').join('');
-}
-function player() {
-  const r=records.find(r=>r.id===state.record),c=lookup(r.channel);
-  state.progress=Math.min(state.progress,r.seconds);
-  return '<section class="player"><div class="player-info"><div><h2>'+escapeHtml(r.caller||c.name)+' <span class="muted">/ '+c.name+'</span></h2><p>'+r.time+' · '+c.mode+' · '+(r.group?'TG '+r.group+' · Slot '+r.slot:'Analog çağrı')+'</p></div><span class="small-pill">SEÇİLİ KAYIT</span></div><div class="waveform" aria-label="Temsili ses dalga biçimi">'+waveform()+'<i class="playhead" id="playhead" style="left:'+(state.progress/r.seconds*100)+'%"></i></div><div class="wave-labels"><span>00:00</span><span>'+duration(r.seconds/4)+'</span><span>'+duration(r.seconds/2)+'</span><span>'+duration(r.seconds*.75)+'</span><span>'+duration(r.seconds)+'</span></div><div class="player-controls"><button class="button primary" data-action="playback" id="play-button">'+icon(state.playing?'Pause':'Play')+(state.playing?'Duraklat':'Oynatımı önizle')+'</button><span class="mono" id="play-time">'+duration(state.progress)+' / '+duration(r.seconds)+'</span><input id="seek" type="range" min="0" max="'+r.seconds+'" value="'+state.progress+'" step=".1" aria-label="Kayıt içinde ilerle"><button class="button compact" data-action="speed" id="speed-button">'+state.speed+'×</button><span class="player-note">Temsili dalga biçimi · ses dosyası yok</span></div></section>';
-}
-function selectRecord(id,play=false) {
-  state.record=Number(id);state.progress=0;state.playing=play;
-  if(state.view!=='archive'){state.view='archive';render();return;}
-  document.getElementById('record-detail').innerHTML=recordDetail(records.find(r=>r.id===state.record));
-  document.getElementById('player-container').innerHTML=player();filterRecords();mountIcons();
-}
-function sourcesView() {
-  return heading('Kaynaklar ve ayarlar','Alıcı bağlantıları ve gelişmiş kanal yapılandırması.') +
-    '<div class="source-cards"><section class="source-card"><div class="source-card-title">'+icon('Usb')+'<h3>RTL-SDR 01</h3><span class="small-pill">USB</span></div><p>Altı tanımlı kanal bu alıcıya bağlı. RF ayarları kaynak düzeyinde yönetilir.</p><dl class="detail-grid"><div><dt>Durum</dt><dd>'+(state.acquiring?'Alım açık':'Alım kapalı')+'</dd></div><div><dt>Alım biçimi</dt><dd>Sabit / bant içi</dd></div><div><dt>Kazanç</dt><dd>19 dB · manuel</dd></div><div><dt>Frekans düzeltme</dt><dd>0 PPM</dd></div></dl>'+button('Alıcı ayarlarını aç','receiver-settings','SlidersHorizontal')+'</section>' +
-    '<section class="source-card"><div class="source-card-title">'+icon('Network')+'<h3>Ağ kaynağı</h3><span class="mode-badge">BAĞLANTI YOK</span></div><p>rtl_tcp IQ alımı ve üretici repeater entegrasyonu ayrı bağlantı türleridir.</p><dl class="detail-grid"><div><dt>rtl_tcp</dt><dd>Yapılandırılmadı</dd></div><div><dt>Hytera Ethernet</dt><dd>Doğrulama bekliyor</dd></div></dl>'+button('Bağlantı türlerini incele','network-info','ChevronRight')+'</section></div><p class="settings-help"><strong>Kanal ayarları</strong> seçili kanalın yan panelinde açılır. Analog FM için CTCSS/DCS, DMR için color code ve slot filtreleri gösterilir. Tarama modunda kanallar sırayla dinlenir; aynı anda alındıkları izlenimi verilmez.</p>';
-}
-function directoryView() {
-  return heading('Kimlik rehberi','Telsiz ve grup kimliklerini anlamlı adlarla eşleştirin.')+
-    '<section class="recent-panel" style="margin-top:0"><div class="panel-heading"><h2>Demo tesis / Kimlik eşleştirmeleri</h2><span class="small-pill">Sistem kapsamı: Demo tesis</span></div><div class="table-wrap"><table><thead><tr><th>Tür</th><th>Kimlik</th><th>Görünen ad</th><th>Kapsam</th><th></th></tr></thead><tbody>'+
-    [{type:'Telsiz',id:1001,name:'Devriye 01'},{type:'Telsiz',id:1002,name:'Devriye 02'},{type:'Telsiz',id:2003,name:'Teknik 03'},{type:'Grup',id:101,name:'Güvenlik ekibi'},{type:'Grup',id:201,name:'Teknik ekip'}].map(r=>'<tr><td>'+r.type+'</td><td class="mono">'+r.id+'</td><td class="table-channel">'+r.name+'</td><td>Demo tesis</td><td><button class="button compact" data-alias="'+r.id+'" data-alias-name="'+r.name+'">İncele</button></td></tr>').join('')+'</tbody></table></div></section><p class="directory-note">Aynı ID başka bir müşteride farklı bir kişiye ait olabilir. Eşleşmeler sistem / müşteri kapsamında tutulur; bilinmeyen ID için ad üretilmez.</p>';
-}
-function spectrumView() {
-  const points=Array.from({length:240},(_,i)=> {
-    const y=160-9*Math.sin(i*4.1)-4*Math.cos(i*1.6)-66*Math.exp(-Math.pow((i-63)/2.5,2))-91*Math.exp(-Math.pow((i-150)/3,2))-40*Math.exp(-Math.pow((i-204)/4,2));
-    return (i*1000/239).toFixed(1)+','+y.toFixed(1);
-  }).join(' ');
-  return heading('Spektrum','RF incelemesi · örnek grafik · ölçüm birimi dBFS',
-    button(state.measuring?'Ölçümü durdur':'Ölçümü başlat',state.measuring?'stop-measurement':'measurement',state.measuring?'Square':'Activity')) +
-    '<div class="notice">'+icon('CircleAlert')+'<div><strong>'+(state.acquiring?'Alıcı şu anda kayıt için kullanılıyor':state.measuring?'Ölçüm önizlemesi açık; çağrı kaydı kapalı':'Ölçüm için alıcı hazır')+'</strong><p>Aynı cihazda bu ölçüm çalışırken çağrı alımı ve kayıt durur.</p></div></div>' +
-    '<section class="source-card"><div class="section-toolbar"><h2>460.000 — 460.500 MHz</h2><span class="small-pill">ÖRNEK GRAFİK</span></div><div class="spectrum-chart"><svg viewBox="0 0 1040 230" role="img" aria-label="Temsili RF spektrumu, gerçek ölçüm değildir">'+[20,60,100,140,180].map((n,i)=>'<line x1="40" x2="1040" y1="'+n+'" y2="'+n+'" stroke="#32475e" stroke-width=".7"/><text x="2" y="'+(n+3)+'" fill="#93a8c0" font-size="10">'+(-i*20)+'</text>').join('')+'<polyline transform="translate(40,0)" points="'+points+'" fill="none" stroke="#63c9d4" stroke-width="1.4"/>'+[0,1,2,3,4].map((n)=>'<text x="'+(40+n*239)+'" y="220" fill="#93a8c0" font-size="10">'+(460+n*.125).toFixed(3)+'</text>').join('')+'</svg></div><div class="chart-waterfall" aria-label="Temsili şelale görüntüsü">'+Array.from({length:28},(_,i)=>'<div class="waterfall-row" style="opacity:'+(0.3+(i%7)/12)+'"></div>').join('')+'</div><div class="chart-caption"><span>Gösterim: Spektrum + şelale</span><span>dBFS · kalibre dBm değildir</span></div></section>';
-}
-function showDrawer(title,body,footer='') {
-  const drawer=document.getElementById('drawer');
-  drawer.innerHTML='<div class="drawer-top"><h2 id="drawer-title">'+title+'</h2><button class="icon-button" data-action="close-drawer" aria-label="Paneli kapat">'+icon('X')+'</button></div><div class="drawer-content">'+body+'</div>'+(footer?'<div class="drawer-footer">'+footer+'</div>':'');
-  mountIcons(drawer); if(!drawer.open)drawer.showModal();
-}
-function editChannel(id) {
-  const c=lookup(id);state.selected=c.id;
-  showDrawer('Kanal ayarları',
-    '<label class="field">Kanal adı<input id="edit-name" value="'+escapeHtml(c.name)+'" maxlength="60"></label><div class="field-row"><label class="field">Mod<select id="edit-mode"><option'+(c.mode==='NFM'?' selected':'')+'>NFM</option><option'+(c.mode==='DMR'?' selected':'')+'>DMR</option><option'+(c.mode==='TETRA'?' selected':'')+'>TETRA</option></select></label><label class="field">Frekans / MHz<input id="edit-frequency" type="number" min="1" step=".00001" value="'+c.frequency+'"></label></div><div class="field-row"><label class="field">Kanal aralığı<select><option>12,5 kHz</option><option>6,25 kHz</option><option>25 kHz</option></select></label><label class="field">Eşik / dBFS<input type="number" value="-60" min="-120" max="0"></label></div><div id="mode-fields">'+modeFields(c.mode)+'</div><p class="helper">Bu taslakta ad, mod ve frekans önizlemeye uygulanır. Diğer alanlar yerleşim örneğidir; ayarlar diske kaydedilmez.</p><div class="notice">'+icon('CircleAlert')+'<span>Alım açıkken kaydetmek için önce alımın durdurulması gerekir.</span></div>',
-    button('Vazgeç','close-drawer',null)+button('Önizlemeye uygula','save-channel','Check','primary'));
-}
-function modeFields(mode) {
-  if(mode==='DMR')return '<div class="field-row"><label class="field">Color code<input placeholder="Tümü" type="number" min="0" max="15" value="1"></label><label class="field">Slot filtresi<select><option>Tümü</option><option>Slot 1</option><option>Slot 2</option></select></label></div><p class="helper" style="margin-top:10px">DMR: 12,5 kHz RF kanalı. Slot ve color code, analog ton ayarlarından ayrıdır.</p>';
-  if(mode==='NFM')return '<div class="field-row"><label class="field">Squelch türü<select><option>CSQ / Taşıyıcı</option><option>CTCSS</option><option>DCS</option></select></label><label class="field">Ton / kod<input placeholder="CSQ için kullanılmaz" disabled></label></div>';
-  return '<div class="notice">'+icon('CircleAlert')+'<span>TETRA deneysel. Destek ve saha kabulü doğrulanmadan etkin gösterilmez.</span></div>';
-}
-function confirmAction(title,description,label,callback) {
-  const dialog=document.getElementById('confirmation');
-  dialog.innerHTML='<h2 id="confirmation-title">'+title+'</h2><p>'+description+'</p><div class="confirmation-actions">'+button('Vazgeç','cancel-confirmation',null)+'<button class="button danger" id="confirm-action">'+label+'</button></div>';
-  document.getElementById('confirm-action').onclick=()=>{dialog.close();callback();};
-  dialog.showModal();
-}
-function saveChannel() {
-  const name=document.getElementById('edit-name').value.trim(),frequency=Number(document.getElementById('edit-frequency').value),mode=document.getElementById('edit-mode').value;
-  if(!name||!Number.isFinite(frequency)||frequency<=0){toast('Kanal adı ve geçerli bir frekans girin.');return;}
-  const save=()=>{const c=lookup(state.selected);c.name=name;c.frequency=frequency.toFixed(5);c.mode=mode;if(mode==='TETRA'){c.enabled=false;c.status='disabled';}if(mode!=='DMR'){c.radio=null;c.group=null;c.slot=null;c.cc=null;c.caller=null;c.status=mode==='TETRA'?'disabled':'idle';}state.acquiring=false;state.measuring=false;document.getElementById('drawer').close();render();toast('Önizleme ayarları uygulandı. Alım durduruldu; gerçek cihaza değişiklik gönderilmedi.');};
-  if(state.acquiring)confirmAction('Alımı durdur ve uygula?','Aktif kayıtlar tamamlanacak. Alım yeniden başlatılana kadar yeni çağrı kaydı alınmayacak.','Durdur ve uygula',save);else save();
-}
-function receiverToggle() {
-  if(state.acquiring)confirmAction('Alım durdurulsun mu?','Bu kaynağa bağlı kanalların aktif kayıtları tamamlanacak. Alım yeniden başlatılana kadar yeni çağrı kaydı alınmayacak.','Alımı durdur',()=>{state.acquiring=false;render();toast('Önizleme: alım durduruldu.');});
-  else{state.acquiring=true;state.measuring=false;render();toast('Önizleme: alım senaryosu başlatıldı.');}
-}
-function startMeasurement() {
-  const start=()=>{state.acquiring=false;state.measuring=true;state.view='spectrum';render();toast('Ölçüm senaryosu açıldı; gösterilen grafik temsili.');};
-  if(state.acquiring)confirmAction('Kayıttan ölçüme geçilsin mi?','Aktif kayıtlar tamamlanacak. Spektrum ölçümü boyunca bu USB alıcıdan çağrı kaydı alınmayacak.','Alımı durdur, ölçüme geç',start);else start();
-}
-const actions = {
-  'archive':()=>navigate('archive'),'sources':()=>navigate('sources'),'edit-selected':()=>editChannel(state.selected),
-  'layout':()=>showDrawer('Kanal düzeni','<label class="field">Sütun sayısı<select id="column-layout"><option value="auto">Otomatik / pencereye göre</option><option value="2">2 sütun</option><option value="3">3 sütun</option></select></label><p class="helper">Kartların sırası korunur. Dar pencerede sütun sayısı okunurluk için azalır.</p>',button('Tamam','close-drawer',null)),
-  'close-drawer':()=>document.getElementById('drawer').close(),'cancel-confirmation':()=>document.getElementById('confirmation').close(),
-  'save-channel':saveChannel,'measurement':startMeasurement,'stop-measurement':()=>{state.measuring=false;render();toast('Ölçüm durduruldu. Çağrı alımını üst çubuktan başlatabilirsiniz.');},
-  'reset-filters':()=>{document.getElementById('archive-search').value='';document.getElementById('archive-date').value='2026-09-12';document.getElementById('archive-slot').value='';filterRecords();},
-  'filter-current-channel':()=>{document.getElementById('archive-search').value=lookup(records.find(r=>r.id===state.record).channel).name;filterRecords();},
-  'playback':()=>{const r=records.find(r=>r.id===state.record);if(state.progress>=r.seconds)state.progress=0;state.playing=!state.playing;document.getElementById('player-container').innerHTML=player();mountIcons();},
-  'speed':()=>{state.speed=state.speed===1?1.5:state.speed===1.5?2:1;document.getElementById('speed-button').textContent=state.speed+'×';},
-  'receiver-settings':()=>showDrawer('Alıcı ayarları','<label class="field">Kaynak<input value="USB · RTL-SDR 01" disabled></label><div class="field-row"><label class="field">Kazanç / dB<input value="19" type="number"></label><label class="field">PPM düzeltme<input value="0" type="number"></label></div><label class="field">Alım biçimi<select id="receive-mode"><option>Sabit / bant içi</option><option>Sıralı tarama</option></select></label><p class="helper" id="receive-help">Sabit alım: kanallar kullanılabilir RF bandına sığmalıdır.</p><p class="helper">Bu panel görsel yerleşim örneğidir; alıcı parametreleri donanıma uygulanmaz.</p>',button('Kapat','close-drawer',null)),
-  'network-info':()=>showDrawer('Ağ bağlantısı türleri','<h3>rtl_tcp / IQ</h3><p class="helper">Ethernet üzerinden ham SDR verisi. Sunucu adresi ve portu kaynağa aittir.</p><h3>Hytera / Repeater</h3><p class="helper">Üreticiye özgü ses ve olay entegrasyonu. Bağlantı kurulması, sesin doğru çözüldüğü anlamına gelmez. Ses, metadata ve kayıt durumları ayrı doğrulanır.</p>',button('Kapat','close-drawer',null))
+const actions={
+ 'sources':()=>navigate('sources'),'archive':()=>navigate('archive'),'edit-selected':()=>editChannel(state.selected),
+ 'close-drawer':()=>$('drawer').close(),'cancel-confirmation':()=>$('confirmation').close(),'save-channel':saveChannel,
+ 'gain-plus':()=>{state.gain=Math.min(50,Number($('quick-gain').value)+10);$('quick-gain').value=state.gain;},
+ 'apply-gain':()=>{state.gain=Math.max(0,Math.min(50,Number($('quick-gain').value)||0));state.agc=$('quick-agc').checked;state.gainApplied=state.gain;render();toast('Kazanç / Tuner AGC görünümü güncellendi. Gerçek donanım komutu gönderilmedi.');},
+ 'apply-source-gain':()=>{state.gain=Math.max(0,Math.min(50,Number($('source-gain').value)||0));state.agc=$('source-agc').value==='Tuner AGC';state.gainApplied=state.gain;render();toast('Kazanç önizlemesi uygulandı.');},
+ 'save-source':()=>{state.receiveMode=$('source-mode').value;state.ppm=Number($('source-ppm').value);toast('Bağlantı formu önizlemesi; yapılandırma dosyası yazılmaz.');},
+ 'save-hytera':()=>{$('hytera-result').textContent=' Önizleme kaydedildi · bağlantı kurulmadı';},'refresh-devices':()=>toast('Örnek envanter gösteriliyor; gerçek USB taranmaz.'),
+ 'reset-filters':()=>{state.archive={query:'',date:'2026-09-12',slot:''};render();},
+ 'playback':()=>{if(!state.admin||state.scenario==='file-error')return;state.playing=true;$('player-container').innerHTML=player();mountIcons();},
+ 'stop-playback':()=>{state.playing=false;$('player-container').innerHTML=player();mountIcons();toast('Dinleme kesildi. Alıcı ve kayıt işi aynı durumda.');},
+ 'record-info':()=>showDrawer('Kayıt ayrıntısı',recordDetail(record(state.record))),
+ 'protection':()=>showDrawer('Korumalı kayıt',`<p>Tamamlanan .wav.radia dosyaları Windows kullanıcısına bağlı DPAPI ile korunur. Dinleme aynı Windows hesabındaki yönetici süreçte, RAM içinde yapılır.</p><p>Başka hesaba veya PC’ye dosya kopyalamak taşınabilir ses dışa aktarma değildir. Aynı kullanıcı bağlamındaki başka yazılıma veya yerel yöneticiye karşı “yalnız Radia açabilir” garantisi verilmez.</p><p class="helper">Aktif analog .wav.part, çözücü WAV’ı veya çökme kalıntıları düz ses içerebilir. Dijital günlükler ve konum JSON’u bu ses koruması kapsamında değildir. Dalga biçimi, ileri sarma ve hız kontrolü sonraki aşamadır.</p>`),
+ 'monitor':()=>{const id=state.selected;state.muted.has(id)?state.muted.delete(id):state.muted.add(id);if($('drawer').open)$('drawer').close();render();toast('Yerel dinleme görünümü değişti; kayıt durumu korunuyor.');},
+ 'fm-panel':()=>{state.fmOpen=!state.fmOpen;updateChrome();mountIcons();},'fm-start':()=>changeOwner('fm'),'fm-stop':()=>{if(state.owner==='fm'){state.owner='none';render();}toast('FM RADIO kapalı. Paneli gizlemekten farklı olarak FM işini durdurur.');},
+ 'map-country':()=>{state.mapZoom=1;state.mapCenter=[35,39];paintMap();},'map-locate':()=>{if(state.scenario==='map-empty'){toast('Henüz geçerli konum yok.');return;}state.mapCenter=[35,39];state.mapZoom=3;paintMap();},'map-info':()=>{state.mapInfo=!state.mapInfo;render();},'map-plus':()=>zoomMap(1.35),'map-minus':()=>zoomMap(1/1.35),
+ 'log-gps':()=>appendLog(true),'log-voice':()=>appendLog(false),
+ 'measurement':()=>changeOwner(state.owner==='spectrum'?'none':'spectrum'),
+ 'spec-apply':()=>{const a=Number($('spec-start').value),b=Number($('spec-end').value);if(!Number.isFinite(a+b)||a<=0||b<=a||b-a>24){$('spec-error').textContent='Geçerli başlangıç / bitiş girin; aralık en fazla 24 MHz.';return;}if(state.owner==='spectrum'){toast('Bandı değiştirmek için ölçümü durdurun.');return;}Object.assign(state.spectrum,{start:a,end:b,center:(a+b)/2,zoom:1,lock:null});render();},
+ 'spec-auto':()=>{Object.assign(state.spectrum,{top:-10,range:80,lock:null});render();},'spec-reset':()=>{state.spectrum.zoom=1;state.spectrum.center=(state.spectrum.start+state.spectrum.end)/2;render();},'spec-clear':()=>{state.spectrum.peakHold=false;state.spectrum.lock=null;render();toast('Tepe tutma / kilit önizlemesi sıfırlandı.');},
+ 'spec-visible':()=>{if(state.owner==='spectrum'){toast('Önce ölçümü durdurun.');return;}const [a,b]=spectrumBounds();Object.assign(state.spectrum,{start:a,end:b,center:(a+b)/2,zoom:1});render();toast('Görünür bant hazırlandı. Ölçüm ayrıca başlatılır.');},
+ 'spec-lock-band':()=>{const s=state.spectrum;if(state.owner==='spectrum'){toast('Önce ölçümü durdurun.');return;}if(s.lock==null){toast('Önce bir tepeye kilitlenin.');return;}Object.assign(s,{start:s.lock-.125,end:s.lock+.125,center:s.lock,zoom:1});render();toast('Kilit çevresinde 250 kHz bant hazırlandı.');}
 };
-document.addEventListener('click',event=>{
-  const b=event.target.closest('button');
-  if(!b) {const row=event.target.closest('[data-record-row]');if(row&&state.view==='archive')selectRecord(row.dataset.recordRow);return;}
-  if(b.dataset.direction)setDirection(b.dataset.direction);
-  else if(b.dataset.view)navigate(b.dataset.view);
-  else if(b.dataset.selectChannel)selectChannel(b.dataset.selectChannel);
-  else if(b.dataset.editChannel)editChannel(b.dataset.editChannel);
-  else if(b.dataset.playRecord)selectRecord(b.dataset.playRecord,true);
-  else if(b.dataset.mute) {
-    const id=Number(b.dataset.mute);state.muted.has(id)?state.muted.delete(id):state.muted.add(id);const drawer=document.getElementById('drawer');if(drawer.open)drawer.close();filterChannels();const detail=document.getElementById('live-detail');if(detail)detail.innerHTML=liveDetail(lookup(state.selected));mountIcons();toast(state.muted.has(id)?'Yerel dinleme sesi kapalı. Ses kaydı devam eder.':'Yerel dinleme sesi açık.');
-  }
-  else if(b.dataset.channelHistory){document.getElementById('drawer').close();navigate('archive');document.getElementById('archive-search').value=lookup(b.dataset.channelHistory).name;filterRecords();}
-  else if(b.dataset.alias)showDrawer('Kimlik eşleştirmesi','<label class="field">Sistem / müşteri<input value="Demo tesis" disabled></label><label class="field">Kimlik<input value="'+b.dataset.alias+'" disabled></label><label class="field">Görünen ad<input value="'+escapeHtml(b.dataset.aliasName)+'" readonly></label><p class="helper">Aynı ID, farklı sistemlerde ayrı eşleştirilir. Bu prototip rehber verisini kaydetmez.</p>',button('Kapat','close-drawer',null));
-  else if(b.dataset.action&&actions[b.dataset.action])actions[b.dataset.action]();
+document.addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b){const row=e.target.closest('[data-record-row]');if(row)selectRecord(row.dataset.recordRow);return;}
+ if(b.dataset.view)navigate(b.dataset.view);else if(b.dataset.channel)selectChannel(b.dataset.channel);else if(b.dataset.edit)editChannel(b.dataset.edit);
+ else if(b.dataset.record)selectRecord(b.dataset.record,true);else if(b.dataset.history){$('drawer').close();state.archive.query=channel(b.dataset.history).name;navigate('archive');}
+ else if(b.dataset.tab){state.sourcesTab=b.dataset.tab;render();}else if(b.dataset.peak){state.spectrum.lock=Number(b.dataset.peak);paintSpectrum();}
+ else if(b.dataset.alias)showDrawer('Kimlik eşleştirmesi',dl([['Kapsam','Demo tesis'],['ID',b.dataset.alias]])+'<p class="helper">Salt okunur önizleme. Üretimde mevcut sistem kapsamındaki kimlik rehberi düzenleme ekranına bağlanır.</p>');
+ else if(b.dataset.action&&actions[b.dataset.action])actions[b.dataset.action]();
 });
-document.getElementById('receiver-toggle').addEventListener('click',receiverToggle);
+$('receiver-toggle').addEventListener('click',()=>changeOwner(state.owner==='radio'?'none':'radio'));
 document.addEventListener('input',e=>{
-  if(['channel-search','active-only'].includes(e.target.id))filterChannels();
-  if(['archive-search','archive-date','archive-slot'].includes(e.target.id))filterRecords();
-  if(e.target.id==='seek'){state.progress=Number(e.target.value);updatePlayerPosition();}
+ const id=e.target.id,v=e.target.value;
+ if(id==='channel-search'){state.liveQuery=v;filterChannels();}
+ if(id==='archive-search'||id==='archive-date'){state.archive[id==='archive-search'?'query':'date']=v;filterRecords();}
+ if(id==='log-search')state.logFilter=v;
+ if(id==='fm-frequency'){state.fmFrequency=Number(v);$('fm-value').textContent=state.fmFrequency.toFixed(1);}
+ const params={'spec-threshold':['threshold','dBFS'],'spec-top':['top','dBFS'],'spec-range':['range','dB'],'spec-zoom':['zoom','×']};
+ if(params[id]){state.spectrum[params[id][0]]=Number(v);$(id+'-value').textContent=v+' '+params[id][1];paintSpectrum();}
+ if(id==='spec-center'&&v!==''&&Number.isFinite(Number(v))){state.spectrum.center=Number(v);paintSpectrum();}
 });
 document.addEventListener('change',e=>{
-  if(e.target.id==='column-layout'){state.columns=e.target.value;filterChannels();}
-  if(e.target.id==='edit-mode'){document.getElementById('mode-fields').innerHTML=modeFields(e.target.value);mountIcons();}
-  if(e.target.id==='receive-mode')document.getElementById('receive-help').textContent=e.target.value.startsWith('Sıralı')?'Tarama: tek tuner kanalları sırayla dinler. Diğer kanallar sıra bekler; eşzamanlı kayıt garantisi verilmez.':'Sabit alım: kanallar kullanılabilir RF bandına sığmalıdır.';
-  if(['archive-slot','archive-date'].includes(e.target.id))filterRecords();
+ const id=e.target.id,v=e.target.value;
+ if(id==='demo-admin'){state.admin=e.target.checked;state.playing=false;if(!state.admin&&state.owner==='spectrum')state.owner='none';render();}
+ if(id==='demo-scenario')applyScenario(v);
+ if(id==='active-only'){state.onlyActive=e.target.checked;filterChannels();}
+ if(id==='archive-slot'){state.archive.slot=v;filterRecords();}
+ if(id==='receive-mode'){state.receiveMode=v;render();}
+ if(id==='edit-mode')$('mode-fields').innerHTML=modeFields(v);
+ if(id==='log-category')state.logCategory=v;
+ const params={'spec-window':'window','spec-average':'average','spec-display':'display','spec-marker':'marker','spec-settle':'settle'};
+ if(params[id]){state.spectrum[params[id]]=v;if(['spec-window'].includes(id))state.spectrum.lock=null;paintSpectrum();}
+ if(id==='spec-hold'){state.spectrum.peakHold=e.target.checked;toast('Tepe tutma görünümü seçildi; gerçek tarama verisi bu prototipte birikmez.');}
 });
-document.addEventListener('dblclick',e=>{const row=e.target.closest('[data-record-row]');if(row)selectRecord(row.dataset.recordRow,true);});
-function updatePlayerPosition(){
-  if(state.view!=='archive')return;
-  const r=records.find(r=>r.id===state.record);
-  document.getElementById('play-time').textContent=duration(state.progress)+' / '+duration(r.seconds);
-  document.getElementById('playhead').style.left=(state.progress/r.seconds*100)+'%';
-  document.getElementById('seek').value=state.progress;
-}
-setInterval(()=>{
-  if(!state.playing||state.view!=='archive')return;
-  const r=records.find(r=>r.id===state.record);state.progress=Math.min(r.seconds,state.progress+.25*state.speed);updatePlayerPosition();
-  if(state.progress>=r.seconds){state.playing=false;document.getElementById('play-button').innerHTML=icon('Play')+'Oynatımı önizle';mountIcons();}
-},250);
-const initial=location.hash.slice(1);
-if(['operations','night','review'].includes(initial)){state.direction=initial;state.view=initial==='review'?'archive':'live';}
+let mapDrag=null;
+document.addEventListener('pointerdown',e=>{if(e.button!==0||!e.target.closest('#map-stage')||e.target.closest('button'))return;mapDrag={x:e.clientX,y:e.clientY,center:[...state.mapCenter]};$('map-stage').setPointerCapture(e.pointerId);});
+document.addEventListener('pointermove',e=>{
+ if(mapDrag&&$('map-stage')){const scale=$('map-stage').clientWidth/(23/state.mapZoom);state.mapCenter=[mapDrag.center[0]-(e.clientX-mapDrag.x)/scale,mapDrag.center[1]+(e.clientY-mapDrag.y)*Math.cos(39*Math.PI/180)/scale];paintMap();}
+ if(e.target.closest('#spectrum-svg')){const r=$('spectrum-svg').getBoundingClientRect(),[lo,hi]=spectrumBounds(),frac=(e.clientX-r.left)/r.width,frequency=lo+Math.max(0,Math.min(1,(frac-.05)/.92))*(hi-lo),level=spectrumLevel(frequency);$('spectrum-cursor').textContent=`${frequency.toFixed(5)} MHz · ${level.toFixed(1)} dBFS · eşik farkı ${(level-state.spectrum.threshold).toFixed(1)} dB`;}
+});
+document.addEventListener('pointerup',()=>mapDrag=null);document.addEventListener('pointercancel',()=>mapDrag=null);
+document.addEventListener('wheel',e=>{if(e.target.closest('#map-stage')){e.preventDefault();zoomMap(e.deltaY>0?1/1.15:1.15);}},{passive:false});
+document.addEventListener('click',e=>{if(!e.target.closest('#spectrum-svg'))return;const rect=$('spectrum-svg').getBoundingClientRect(),[lo,hi]=spectrumBounds(),f=lo+Math.max(0,Math.min(1,((e.clientX-rect.left)/rect.width-.05)/.92))*(hi-lo);const peaks=spectrumPeaks.filter(p=>p.frequency>=lo&&p.frequency<=hi);if(peaks.length){state.spectrum.lock=peaks.reduce((a,b)=>Math.abs(a.frequency-f)<Math.abs(b.frequency-f)?a:b).frequency;paintSpectrum();}});
+document.addEventListener('contextmenu',e=>{if(e.target.closest('#spectrum-svg')){e.preventDefault();state.spectrum.lock=null;paintSpectrum();}});
+addEventListener('resize',()=>{if(state.view==='map')paintMap();});
+const initial=location.hash.slice(1);if(['live','archive','map','logs','sources','spectrum','directory','about'].includes(initial))state.view=initial;
 render();

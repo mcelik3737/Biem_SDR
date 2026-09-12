@@ -1,54 +1,22 @@
-# Tasarım prototipi doğrulaması
+# Operasyon V2 — doğrulama kaydı
 
-Tarih: **12 Eylül 2026**.
+12 Eylül 2026. Bu kayıt **HTML tasarım prototipine** aittir. Radyo, gerçek kayıt, DPAPI, Windows UAC ve RF kabul testi değildir.
 
-## Tamamlanan kontroller
+## Yapılan kontroller
 
-Yerel HTML prototipi Chromium ile açıldı. Üç ana görünüm, 1366 × 768 görünümü ve kanal ayar panelinin ekran görüntüleri alındı. Operasyon, Gece konsolu, Arşiv odaklı ve dar ekran görünümü görsel olarak incelendi. Son kayıtlar ve oynatıcı için yerleşim sıkılaştırıldı.
+- Chromium 153 / Playwright ile altı ana sayfa: canlı izleme, arşiv, harita, günlük, spektrum, kaynaklar.
+- 1280×920, 1366×768, 1920×1080. Ayrıca %125/%150 ölçeklemenin kullanılabilir alanını temsil eden 1536×864, 1280×720, 1024×736, 853×613, 1093×614 ve 911×512 CSS viewport boyutları.
+- Toplam **54 sayfa/boyut kontrolünde** belge ve ana sayfa yatay taşması yok; sabit alt durum çubuğu görünür; eksik ikon yok. Uzun içerik sayfa/table içinde kayar. Bu, gerçek Windows/Tk DPI testi yerine geçmez.
+- 1920×1080’de altı kanal, sağ ayrıntı ve üç son kayıt görünür. 1366×768’de altı kanal görünür; ayrıntı paneli açılır, son kayıtlar aşağı kaydırılarak erişilir.
+- **18 etkileşim senaryosu geçti:** kanal düzenleme kilidi; görünüm filtresinin alımı koruması; monitör sesinin kaydı koruması; özel hedef/çözücü kanalı; tarama/eski ölçüm; normal süreç arşiv listesi/dinleme kilidi; kimlik/tarih/slot filtreleri ve boş sonuç; yönetici dinleme görünümü/sesi kes; dosya çözme hatası; FM geçiş/gizleme/kapatma; beş protokolün ayar alanları; telsiz ikonunun ölçeği/alt orta koordinatı; boş/eski/eksik karo harita; yalnız yeni satırlara günlük filtresi; spektrum yetkisi/sahiplik/24 MHz/kilit/yeniden çizim; eksik/meşgul USB; Hytera ayar kaydı; tek HTML çevrimdışı görselleri/sayfaları.
+- Senaryolarda JavaScript sayfa hatası **0**; HTTP(S) isteği **0**. Dış web bağlantısı yalnız BİEM bağlantısına kullanıcı tıklarsa açılır.
+- `node --check` JavaScript kontrolü ve tek HTML üretimi başarılı. `python -m uv build` başarılı: bu tasarım dalının temelindeki **0.1.0** paketini üretir; yerel 0.2.0 derlemesi değildir.
+- Logo, amblem ve telsiz dosyalarının yüklenen ZIP’teki dosyalarla byte eşitliği doğrulandı. Projeye gerçek ses, konum günlüğü veya karo arşivi eklenmedi.
 
-| Kontrol | Sonuç |
-|---|---|
-| Başlangıçta altı kanal kartı | Geçti |
-| Kanal / ID araması (1002) | Bir ilgili kanal |
-| Yalnız aktif filtresi | İki örnek aktif kanal |
-| Yerel sesi kapatma | İki örnek aktif kayıt durumu korunuyor |
-| DMR → NFM ayar paneli | Analog squelch alanı gösteriliyor |
-| Arşivde ID araması (1002) | İki örnek kayıt |
-| Analog / slotsuz filtre | Üç örnek kayıt |
-| Örnek veri dışındaki tarih | Açıklamalı boş sonuç |
-| Kayıt seçme / oynatımı önizleme / duraklatma | Doğru örnek kayıt ve oynatıcı durumu |
-| Kayıttan spektruma geçiş | Onay gösteriliyor; kayıt ve ölçüm durumları ayrılıyor |
-| Ölçümden yeniden alıma geçiş | Ölçüm durumu kapanıyor |
-| Tarayıcı JavaScript hataları | Yok |
-| JavaScript sözdizimi ve token JSON | Geçti |
-| Python paketi: `python -m uv build` | Wheel ve kaynak paketi başarıyla oluştu |
+## Gerçek uygulamaya kalan kabul
 
-Yerel sesi kapatmanın kaydı etkilememesi ve kaynak paylaşımı kontrolleri **prototip durum modeli** üzerindedir; gerçek kayıt motoru/hardware testi değildir.
+Bu Linux oturumunda `Check-Radia.ps1` / Windows Tk / UAC / DPAPI çalıştırılmadı. Kullanıcının brifindeki 71 donanımsız test ve 0.2.0 derleme sonucu yerel Codex raporudur; bu tasarım turunun yaptığı test olarak sunulmaz.
 
-| Tarayıcı çalışma alanı | Sayfa, başlık ve ana içerikte yatay taşma |
-|---|---|
-| 1920 × 1080 | Yok |
-| 1366 × 768 | Yok |
-| 1093 × 614 | Yok |
-| 911 × 512 | Yok |
-| 800 × 800 | Yok |
+Özellikle gerçek kaydın 90/2 politikasıyla kapanması, DMR çağrı sonu import, TETRA kesintileri/kimlik ilişkilendirmesi, gerçek USB serbest bırakma, normal/yönetici RAM dinleme, konum doğrulama ve Windows %100/%125/%150 okunurluğu çalışan uygulamada ayrıca kontrol edilmelidir.
 
-Küçük/yüksekliği az pencerelerde içerik dikey kayar. Bazı kayıt tablolarının kendi yatay/dikey kaydırma alanı vardır. Kontrol sonuçları tablonun tüm sütunlarının her küçük ekranda aynı anda göründüğü anlamına gelmez.
-
-## Ayrı doğrulama gerektirenler
-
-- Tarayıcı boyutları Windows %125/%150 ölçek testinin yerine geçmez. Gerçek Tk uygulamasında Windows DPI, Segoe UI, klavye ve ekran okuyucu kontrolü yapılmalı.
-- `Check-Radia.ps1` bu Linux ortamında PowerShell bulunmadığı için çalıştırılmadı. Python uygulama kaynakları bu pakette değiştirilmedi. Windows uygulama değişikliği sonrası bu kapı çalıştırılmalı.
-- USB/rtl_tcp/Hytera bağlantısı, DMR ses/metadata, anlaşılır RF sesi, WAV kaydı ve gerçek oynatma bu tasarım işi kapsamında sınanmadı.
-- Dalga biçimi, zaman çizelgesi, sinyal seviyesi, disk bilgisi ve tarih örnektir. Gerçek verilerle doğrulama uygulama aşamasına aittir.
-- Bilinmeyen yerel proje notlarının tasarımla uyumu doğrulanmış değildir; kullanıcının belirttiği yerel not dosyası uygulamadan önce okunmalıdır.
-
-## Ekran dosyaları
-
-- [01-operasyon.png](previews/01-operasyon.png)
-- [02-gece-konsolu.png](previews/02-gece-konsolu.png)
-- [03-arsiv-odakli.png](previews/03-arsiv-odakli.png)
-- [04-1366x768.png](previews/04-1366x768.png)
-- [05-kanal-ayarlari.png](previews/05-kanal-ayarlari.png)
-
-BIEM özgün PNG SHA-256: `5fb885a9283ea26dd3d319796f05fe78855c9e8d98a5ae71fa36652e74fa5493`.
+Önizleme örnek olayları dondurulmuştur; süreler/sinyaller bir alıcıdan akmaz. Bazı gelişmiş ayarlar yalnız yerleşim örneğidir. “Uygulandı” tasarım içi durumdur; donanım başarısı değildir. Üretim arayüzü bu durumları backend olaylarından almalıdır.
