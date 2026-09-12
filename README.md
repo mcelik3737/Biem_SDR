@@ -68,4 +68,3 @@ Git deposu bu proje klasöründe, çalışma dalı `codex/analog-mvp`. `origin`:
 - [librtlsdr API](https://github.com/osmocom/rtl-sdr/blob/master/include/rtl-sdr.h) ve [rtl_tcp protokolü](https://github.com/osmocom/rtl-sdr/blob/master/src/rtl_tcp.c).
 
 Üçüncü taraf bağımlılıkların sürüm ve dağıtım bilgileri `docs/THIRD_PARTY.md` içindedir.
-
