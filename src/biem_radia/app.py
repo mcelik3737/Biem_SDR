@@ -36,7 +36,7 @@ class RadiaApp:
                 messagebox.showerror("Kanal ayarları", f"Ayar dosyası okunamadı: {exc}")
         self.last_count = -1
         self.closing = False
-        root.title("BİEM Radia • Dispatcher / Analog FM")
+        root.title("BİEM Radia • Dispatcher / FM + DMR")
         root.geometry("1240x820")
         root.minsize(1050, 700)
         root.configure(bg="#101b2d")
@@ -74,9 +74,7 @@ class RadiaApp:
         header = ttk.Frame(outer)
         header.pack(fill="x")
         ttk.Label(header, text="BİEM  /  RADIA", font=("Segoe UI", 24, "bold")).pack(side="left")
-        ttk.Label(header, text="DİSPATCHER   •   ANALOG FM", foreground="#74d9cc").pack(
-            side="right"
-        )
+        ttk.Label(header, text="DİSPATCHER   •   FM + DMR", foreground="#74d9cc").pack(side="right")
         self.status = tk.StringVar(value="Alıcı beklemede • Kayıt başlatılmadı")
         ttk.Label(
             outer,
@@ -95,6 +93,24 @@ class RadiaApp:
         self.port = tk.StringVar(value="1234")
         self.ppm = tk.StringVar(value="0")
         self.usb_gain = tk.StringVar(value="19")
+        self.receiver_config_path = self.archive.root / "receiver.json"
+        self.receiver_fields = {
+            "source": self.source,
+            "host": self.host,
+            "port": self.port,
+            "ppm": self.ppm,
+            "usb_gain": self.usb_gain,
+        }
+        if self.receiver_config_path.exists():
+            try:
+                settings = json.loads(self.receiver_config_path.read_text("utf-8"))
+                if not isinstance(settings, dict):
+                    raise ValueError("Alıcı ayarı nesne olmalı.")
+                for key, variable in self.receiver_fields.items():
+                    if key in settings:
+                        variable.set(str(settings[key]))
+            except (ValueError, OSError) as exc:
+                messagebox.showerror("Alıcı ayarı", str(exc))
         self._field(row, "Kaynak", self.source, 10, ["USB", "rtl_tcp"])
         self._field(row, "Ethernet SDR adresi", self.host, 17)
         self._field(row, "Port", self.port, 7)
@@ -104,6 +120,22 @@ class RadiaApp:
         self.start_button.pack(side="left", padx=(20, 6), pady=(16, 0))
         self.stop_button = ttk.Button(row, text="■ Durdur", command=self.receiver.stop)
         self.stop_button.pack(side="left", pady=(16, 0))
+
+        mode_row = ttk.Frame(setup)
+        mode_row.pack(fill="x", pady=(8, 0))
+        self.mode = tk.StringVar(value="NFM")
+        self.system = tk.StringVar(value="Default")
+        self.color_code = tk.StringVar()
+        self.enabled = tk.BooleanVar(value=True)
+        self._field(mode_row, "Kanal modu", self.mode, 8, ["NFM", "DMR"])
+        self._field(mode_row, "Sistem / müşteri kapsamı", self.system, 22)
+        self._field(mode_row, "Color code (boş = tümü)", self.color_code, 18)
+        ttk.Button(mode_row, text="ID → İsim eşleştirme", command=self.alias_dialog).pack(
+            side="left", padx=10, pady=(16, 0)
+        )
+        ttk.Checkbutton(mode_row, text="Kanal etkin", variable=self.enabled).pack(
+            side="left", pady=(16, 0)
+        )
 
         edit = ttk.Frame(setup)
         edit.pack(fill="x", pady=(12, 8))
@@ -128,7 +160,7 @@ class RadiaApp:
             setup,
             columns=("name", "frequency", "spacing", "filter", "squelch"),
             show="headings",
-            height=3,
+            height=2,
         )
         for key, label in zip(
             self.channel_table["columns"],
@@ -140,6 +172,10 @@ class RadiaApp:
         self.channel_table.pack(fill="x")
         self.channel_table.bind("<<TreeviewSelect>>", self.select_channel)
         self.refresh_channels()
+        initial = next((i for i, c in enumerate(self.channels) if c.enabled), None)
+        if initial is not None:
+            self.channel_table.selection_set(str(initial))
+            self.select_channel()
         self.levels = tk.StringVar(
             value="Tüm listedeki kanallar eşzamanlı alınır. Ayar değişikliği için alımı durdurun."
         )
@@ -153,8 +189,10 @@ class RadiaApp:
         search.pack(fill="x", pady=(0, 10))
         self.search_text = tk.StringVar()
         self.search_day = tk.StringVar()
+        self.search_slot = tk.StringVar(value="Tümü")
         self._field(search, "Kanal adı / başlık / ID", self.search_text, 32)
         self._field(search, "Tarih / YYYY-MM-DD (yerel)", self.search_day, 24)
+        self._field(search, "Slot", self.search_slot, 6, ["Tümü", "1", "2"])
         ttk.Button(search, text="Ara / yenile", command=self.refresh_archive).pack(
             side="left", padx=10, pady=(16, 0)
         )
@@ -220,7 +258,7 @@ class RadiaApp:
                 "end",
                 iid=str(i),
                 values=(
-                    c.name,
+                    f"{c.name} [{c.mode}]" + (" • kapalı" if not c.enabled else ""),
                     f"{c.frequency_hz / 1e6:.5f}",
                     c.spacing_hz,
                     c.bandwidth_hz,
@@ -232,12 +270,16 @@ class RadiaApp:
         selected = self.channel_table.selection()
         if selected:
             c = self.channels[int(selected[0])]
+            self.enabled.set(c.enabled)
             for variable, value in [
                 (self.name, c.name),
                 (self.freq, f"{c.frequency_hz / 1e6:.5f}"),
                 (self.spacing, c.spacing_hz),
                 (self.bandwidth, c.bandwidth_hz),
                 (self.squelch, c.squelch_db),
+                (self.mode, c.mode),
+                (self.system, c.system),
+                (self.color_code, "" if c.color_code is None else c.color_code),
             ]:
                 variable.set(str(value))
 
@@ -252,6 +294,10 @@ class RadiaApp:
                 int(self.spacing.get()),
                 int(self.bandwidth.get()),
                 float(self.squelch.get()),
+                mode=self.mode.get(),
+                system=self.system.get().strip(),
+                color_code=int(self.color_code.get()) if self.color_code.get().strip() else None,
+                enabled=self.enabled.get(),
             )
             found = next(
                 (
@@ -294,8 +340,12 @@ class RadiaApp:
                 raise ValueError("USB kazancı −10…50 dB aralığında olmalı.")
             if not -200 <= ppm <= 200 or not 1 <= port <= 65535:
                 raise ValueError("PPM −200…200, port 1…65535 aralığında olmalı.")
+            self.receiver_config_path.write_text(
+                json.dumps({key: var.get() for key, var in self.receiver_fields.items()}, indent=2),
+                "utf-8",
+            )
             self.receiver.start(
-                self.channels.copy(),
+                [c for c in self.channels if c.enabled],
                 self.project / "vendor/rtl-sdr/package/x64/rtlsdr.dll",
                 self.source.get(),
                 self.host.get(),
@@ -309,7 +359,11 @@ class RadiaApp:
 
     def refresh_archive(self):
         try:
-            rows = self.archive.search(self.search_text.get(), self.search_day.get())
+            rows = self.archive.search(
+                self.search_text.get(),
+                self.search_day.get(),
+                slot=None if self.search_slot.get() == "Tümü" else int(self.search_slot.get()),
+            )
         except ValueError:
             messagebox.showerror("Tarih", "Tarihi YYYY-MM-DD biçiminde yazın veya boş bırakın.")
             return
@@ -336,7 +390,50 @@ class RadiaApp:
             )
         if selected and self.calls.exists(selected[0]):
             self.calls.selection_set(selected)
-        self.count.set(f"{len(rows)} kayıt gösteriliyor • En yeni 1000 sonuç • WAV / 16 kHz / mono")
+        self.count.set(f"{len(rows)} kayıt • FM: 16 kHz / DMR: 8 kHz • Slot —: çözücü bildirmedi")
+
+    def alias_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("DMR • Sistem kapsamında ID → İsim")
+        dialog.geometry("720x400")
+        frame = ttk.Frame(dialog, padding=16)
+        frame.pack(fill="both", expand=True)
+        fields = ttk.Frame(frame)
+        fields.pack(fill="x")
+        system = tk.StringVar(value=self.system.get())
+        kind = tk.StringVar(value="radio")
+        identity = tk.StringVar()
+        name = tk.StringVar()
+        for label, var, width, choices in [
+            ("Sistem", system, 16, None),
+            ("Tür", kind, 8, ["radio", "group"]),
+            ("ID", identity, 10, None),
+            ("İsim", name, 20, None),
+        ]:
+            self._field(fields, label, var, width, choices)
+        table = ttk.Treeview(frame, columns=("kind", "id", "name"), show="headings", height=7)
+        for key, label in [("kind", "Tür"), ("id", "ID"), ("name", "İsim")]:
+            table.heading(key, text=label)
+
+        def refresh():
+            table.delete(*table.get_children())
+            for row in self.archive.aliases(system.get()):
+                table.insert("", "end", values=(row["kind"], row["identity"], row["name"]))
+
+        def save():
+            try:
+                self.archive.set_alias(system.get(), kind.get(), identity.get(), name.get())
+                refresh()
+                self.refresh_archive()
+            except ValueError as exc:
+                messagebox.showerror("ID eşleştirme", str(exc), parent=dialog)
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", pady=12)
+        ttk.Button(buttons, text="Kaydet", command=save).pack(side="left")
+        ttk.Button(buttons, text="Sistemi listele", command=refresh).pack(side="left", padx=8)
+        table.pack(fill="both", expand=True)
+        refresh()
 
     def play(self):
         selected = self.calls.selection()

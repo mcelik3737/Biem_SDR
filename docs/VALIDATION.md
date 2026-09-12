@@ -21,13 +21,17 @@ Ruff, biçim kontrolü, ty ve basedpyright geçiyor. Wheel ve kaynak paketi olu�
 
 ## Henüz doğrulanmayan veya uygulanmayan işler
 
-- Kullanıcının telsizinden anlaşılır canlı konuşma alımı ve mandal bırakıldıktan sonra ayrı kayıtlara bölünmesi: kullanıcı testi bekleniyor.
+- Analog ses kullanıcı tarafından doğrulandı. DMR güncel doğrulama durumu aşağıdadır.
 - Aynı cihazla çok kanallı gerçek yayın performansı ve 24 saat kesintisiz çalışma.
 - Ethernet üzerinde gerçek rtl_tcp sunucusu: adaptör mevcut, yerel protokol testi geçti; gerçek ağ cihazı testi bekliyor.
-- DMR hava arayüzü/ses çözümü, ID/grup/slot çıkartma ve alias eşlemesi uygulanmadı.
+- DMR eşzamanlı iki gerçek RF slotu kabul testi bekliyor; simplex ses ve metadata doğrulandı.
 - Hytera repeater entegrasyonu uygulanmadı; rtl_tcp bu entegrasyon değildir.
 - Crash recovery, disk kotası, saklama süresi, kullanıcı yetkileri ve kurumsal yedekleme sonraki aşama.
 
 ## Sonraki kabul ölçütü
 
-446,00625 MHz analog kanalda 5–10 saniyelik iki test konuşması, arada en az 2 saniye taşıyıcısız bekleme. Her biri ayrı dosya olmalı; tarih/kanal aramasıyla bulunmalı ve kullanıcı sesi anlaşılır duyduğunu doğrulamalı. Ancak bundan sonra analog saha kabulü tamamlandı sayılmalı.
+DMR röle üzerinden iki eşzamanlı slotun ayrı dosyalara ve doğru kimliklere bağlanması, ardından çok kanallı uzun süre testi.
+
+## DMR güncellemesi — 2026-09-12
+
+27 donanımdan bağımsız test, Ruff, ty ve basedpyright geçti; wheel ve kaynak paketi üretildi. Kullanıcı gerçek RF'den çözülen DMR konuşmasını anlaşılır duyduğunu doğruladı. Alıcının frekans sapması kalıcı PPM ayarıyla düzeltildikten sonra doğrudan canlı alımdan iki konuşma WAV'ı arşive yazıldı. Kaynak/hedef ID, color code ve sistem bazında isim eşlemesi gerçek çözücü olaylarıyla eşleşti. Simplex olaylarında fiziksel slot verilmediği için boş bırakıldı. Sınırlar ve zaman damgası yaklaşımı için `DMR.md` dosyasına bakın.

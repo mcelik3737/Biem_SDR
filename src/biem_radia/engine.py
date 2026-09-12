@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .dmr import DmrBackend, DmrDiscriminator
 from .dsp import FMDemodulator
 from .models import SAMPLE_RATE, Channel, center_for
 from .recorder import CallRecorder
@@ -63,9 +64,16 @@ class Receiver:
     def _run(self, channels, dll, source_kind, host, port, ppm, center, usb_gain):
         source = None
         recorders: list[CallRecorder] = []
+        digital: dict[str, tuple[DmrDiscriminator, DmrBackend]] = {}
         reason = "stopped"
         try:
             self.publish("status", text="Alıcı açılıyor…")
+            for channel in channels:
+                if channel.mode == "DMR":
+                    digital[channel.name] = (
+                        DmrDiscriminator(channel, center),
+                        DmrBackend(self.archive, channel, self.archive.root.parent),
+                    )
             source = (
                 USBSource(dll, center, ppm=ppm, gain_db=usb_gain)
                 if source_kind == "USB"
@@ -76,17 +84,36 @@ class Receiver:
             while discarded < SAMPLE_RATE // 4 and not self.stop_event.is_set():
                 discarded += len(source.read())
             epoch = datetime.now(timezone.utc)
-            recorders = [CallRecorder(self.archive, c, source_kind, epoch) for c in channels]
-            demodulators = [FMDemodulator(c, center) for c in channels]
+            analog = [c for c in channels if c.mode == "NFM"]
+            recorders = [CallRecorder(self.archive, c, source_kind, epoch) for c in analog]
+            demodulators = [FMDemodulator(c, center) for c in analog]
             self.archive.event(
                 "INFO",
                 f"Alım başladı: {source_kind}, merkez {center}, kanallar {[c.name for c in channels]}",
             )
-            self.publish("status", text="ALIM HAZIR • Analog FM")
+            self.publish(
+                "status",
+                text="ALIM HAZIR • DMR senkronu bekleniyor"
+                if digital
+                else "ALIM HAZIR • Analog FM",
+            )
             last_update = 0.0
             while not self.stop_event.is_set():
                 iq = source.read()
                 states = []
+                for name, (discriminator, backend) in digital.items():
+                    pcm, level = discriminator.process(iq)
+                    backend.feed(pcm)
+                    states.append(
+                        {
+                            "name": name,
+                            "level": round(level, 1),
+                            "active": False,
+                            "completed": backend.completed,
+                            "mode": "DMR",
+                            "offset_hz": round(discriminator.offset_hz),
+                        }
+                    )
                 for demod, recorder in zip(demodulators, recorders, strict=True):
                     audio, level = demod.process(iq)
                     recorder.feed(audio, level)
@@ -110,6 +137,13 @@ class Receiver:
             except Exception:
                 logging.exception("Cannot write event log")
         finally:
+            for _, backend in digital.values():
+                try:
+                    backend.close()
+                except Exception as exc:
+                    reason = "error"
+                    logging.exception("DMR finalization failed")
+                    self.publish("error", text=f"DMR kapanış hatası: {exc}")
             for recorder in recorders:
                 try:
                     recorder.finish(reason)

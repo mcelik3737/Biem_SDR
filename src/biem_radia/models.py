@@ -14,8 +14,20 @@ class Channel:
     spacing_hz: int = 12_500
     bandwidth_hz: int = 12_500
     squelch_db: float = -45.0
+    mode: str = "NFM"
+    system: str = "Default"
+    color_code: int | None = None
+    enabled: bool = True
 
     def __post_init__(self):
+        if self.mode not in ("NFM", "DMR"):
+            raise ValueError("Mod NFM veya DMR olmalı.")
+        if not self.system.strip() or len(self.system) > 100:
+            raise ValueError("Sistem adı 1–100 karakter olmalı.")
+        if self.color_code is not None and not 0 <= self.color_code <= 15:
+            raise ValueError("Color code 0–15 olmalı veya boş bırakılmalı.")
+        if self.mode == "DMR" and self.spacing_hz != 12500:
+            raise ValueError("DMR taşıyıcısı 12500 Hz kanal aralığı kullanır; slot bundan ayrıdır.")
         if not self.name.strip() or len(self.name) > 100:
             raise ValueError("Kanal adı 1–100 karakter olmalı.")
         if not 24_000_000 <= self.frequency_hz <= 1_766_000_000:

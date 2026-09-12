@@ -1,6 +1,6 @@
 # BİEM Radia Dispatcher
 
-Windows üzerinde RTL-SDR ile analog FM alımı, taşıyıcı/squelch tabanlı konuşma kaydı ve yerel ses arşivi. İlk çalışan prototiptir; saha kabul testi tamamlanmadan kurumsal kesintisiz kayıt sistemi olarak değerlendirilmemelidir.
+Windows üzerinde RTL-SDR ile analog FM ve DMR alımı, konuşma kaydı ve yerel ses arşivi. Analog ses ve gerçek RF'den çözülen DMR sesinin anlaşılırlığı kullanıcı tarafından doğrulandı. Saha kabulü tamamlanmış kesintisiz kayıt sistemi değildir.
 
 ## Başlatma
 
@@ -12,6 +12,7 @@ Yeni kurulum için Python 3.12+ (bu PC'de 3.14, 64 bit), Tk ve uv gerekir:
 cd D:\Projects\Biem\_SDR
 python -m pip install uv
 .\Setup-Radia.ps1
+.\Setup-DMR.ps1
 .\Start-Radia.cmd
 ```
 
@@ -29,10 +30,11 @@ Alıcı açıkken giriş kutularını değiştirmek çalışan kanal ayarların�
 
 ## Kayıtların konumu
 
-- `data/recordings/YYYY-MM-DD/`: 16 kHz, 16 bit, mono WAV; kullanıcı kanal adı dosya yolu olarak kullanılmaz.
+- `data/recordings/YYYY-MM-DD/`: analog 16 kHz, DMR 8 kHz; 16 bit, mono WAV; kullanıcı kanal adı dosya yolu olarak kullanılmaz.
 - `data/radia.sqlite3`: UTC başlangıç zamanı, kanal, frekans, süre, kaynak ve kapanma nedeni. Ekran ve tarih araması PC'nin yerel saatini kullanır.
 - `data/radia.log`: teknik hatalar; SQLite `events` tablosu alım başlangıcı ve hata olaylarını içerir.
 - `data/channels.json`: kaydedilen kanal ayarları.
+- `data/receiver.json`: PPM, USB kazancı ve kaynak ayarları.
 - `data/receiver-status.json`: en son alıcı telemetrisi; geçmiş izleme servisi değildir.
 
 Açık kayıt `.wav.part` uzantısıyla tutulur; normal durdurma veya yakalanan bağlantı hatasında WAV tamamlanır. Ani elektrik kesintisinden kalan `.part` veya veritabanına eklenememiş WAV dosyaları otomatik kurtarılmaz; silmeyin. İlk sürüm kayıt silmez, saklama süresi uygulamaz, disk kotası veya kullanıcı yetkilendirmesi sunmaz. Yedekleme ve disk kapasitesi saha aşamasında ayrıca yapılandırılmalıdır.
@@ -45,9 +47,9 @@ Listede 1–8 analog kanal tanımlanabilir. Hepsi aynı 960 kS/s I/Q akışında
 
 ## DMR ve dispatcher kapsamı
 
-Analog FM akışında otomatik DMR ID, grup veya slot bulunmaz. Veritabanındaki bu alanlar analog kayıtlar için **NULL** bırakılır, arayüzde `—` gösterilir. DMR ses çözücü, ID/alias eşlemesi ve üretici repeater entegrasyonu henüz uygulanmadı. DMR, yalnızca daha dar FM filtresi seçilerek çözülemez; kanal aralığı, hava arayüzü ve ses kodlayıcı ayrı konulardır. 6,25 kHz kanal seçeneği tek başına dPMR veya DMR desteği anlamına gelmez.
+DMR için ayrı discriminator ve DSD-FME backend'i, çağrı WAV'ları, kaynak/hedef ID, color code ve sistem bazında isim eşleştirmeleri eklendi. Arşiv tarih, isim, ID ve bildirilen slot üzerinden aranabilir. Ayrıntılı kullanım ve kabul durumu: [DMR kılavuzu](docs/DMR.md).
 
-Sonraki aşama için gerçek telsiz/repeater modeli, analog/DMR modu, izinli test kanalı ve üreticinin ses/olay arayüz belgesi gerekir. Dijital metadata gerçek çözücüden gelmeden kimlik ataması yapılmayacak.
+Analog kayıtların kimlikleri boş kalır. DMR simplex olayında çözücü fiziksel slot bildirmezse slot tahmin edilmez. Aynı ID ve saniyeyle iki slota birden eşleşen dosyalar otomatik atanmaz; özgün dosya korunur. Gerçek eşzamanlı iki slot ve Hytera repeater IP entegrasyonu henüz doğrulanmadı. 6,25 kHz seçimi dPMR desteği sağlamaz.
 
 ## Geliştirme
 
@@ -59,7 +61,7 @@ python -m uv build
 
 Testler donanımdan bağımsızdır; gerçek USB'yi açmaz ve canlı yayınları test verisi olarak kullanmaz. Kaynak kod `src/biem_radia`, testler `tests` altındadır. `data`, `vendor` ve `external` Git dışında tutulur.
 
-Git deposu bu proje klasöründe, çalışma dalı `codex/analog-mvp`. `origin`: https://github.com/mcelik3737/Biem_SDR.git . İlk teslimde bağlantı ve yerel commit hazırlanır; uzak depoya push yapılmaz. Ses kayıtları ve çalışma verileri Git dışında kalır.
+Git deposu bu proje klasöründe; `origin`: https://github.com/mcelik3737/Biem_SDR.git . Doğrulanmış analog sürüm `analog-verified-2026-09-12` etiketiyle korunur. Önceki C++ taslağı `legacy/cpp-prototype` altındadır. Ses kayıtları, ID ayarları ve çalışma verileri Git dışında kalır.
 
 ## Referanslar ve lisans sınırı
 
