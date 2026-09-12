@@ -135,3 +135,18 @@ def test_discriminator_preserves_dc_and_four_level_signal_in_irregular_blocks():
 def test_dmr_is_not_a_6250_hz_filter_setting():
     with pytest.raises(ValueError, match="12500"):
         Channel("A", 427500000, mode="DMR", spacing_hz=6250)
+
+
+def test_decoder_slot_requires_matching_simplex_call():
+    from biem_radia.dmr import decoder_slot, parse_event
+
+    event = parse_event("2026-09-12 15:35:06 DMR TGT: 3411; SRC: 3737; CC: 11; Group;")
+    assert event is not None
+    log = "15:35:06 Sync: +DMR MS/DM MODE/MONO | Color Code=11 | TLC\n SLOT 1 TGT=3411 SRC=3737 Group Call\n"
+    assert decoder_slot(log, event) == 1
+    assert event.slot is None
+    assert decoder_slot(log.replace("SRC=3737", "SRC=4000"), event) is None
+    assert decoder_slot(log.replace("15:35:06", "15:35:05"), event) is None
+    assert decoder_slot(log.replace("Color Code=11", "Color Code=1"), event) is None
+    assert decoder_slot(log.replace("MS/DM MODE/MONO", "BS"), event) is None
+    assert decoder_slot(log + " SLOT 2 TGT=3411 SRC=3737 Group Call\n", event) is None

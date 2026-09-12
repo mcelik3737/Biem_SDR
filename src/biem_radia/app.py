@@ -214,7 +214,7 @@ class RadiaApp:
                 "Kaynak",
                 "ID / Grup / Slot",
             ],
-            [195, 220, 120, 105, 90, 145],
+            [195, 200, 110, 95, 90, 220],
             strict=True,
         ):
             self.calls.heading(key, text=label)
@@ -370,8 +370,17 @@ class RadiaApp:
         selected = self.calls.selection()
         self.calls.delete(*self.calls.get_children())
         for r in rows:
-            identities = " / ".join(
-                str(r[k]) if r[k] is not None else "—" for k in ("radio_id", "group_id", "slot")
+            slot_label = (
+                str(r["slot"])
+                if r["slot"] is not None
+                else f"{r['decoder_slot']} (çözücü)"
+                if r["decoder_slot"] is not None
+                else "—"
+            )
+            identities = (
+                " / ".join(str(r[k]) if r[k] is not None else "—" for k in ("radio_id", "group_id"))
+                + " / "
+                + slot_label
             )
             self.calls.insert(
                 "",
@@ -390,7 +399,9 @@ class RadiaApp:
             )
         if selected and self.calls.exists(selected[0]):
             self.calls.selection_set(selected)
-        self.count.set(f"{len(rows)} kayıt • FM: 16 kHz / DMR: 8 kHz • Slot —: çözücü bildirmedi")
+        self.count.set(
+            f"{len(rows)} kayıt • Slot (çözücü): fiziksel slot doğrulanmadı; slot filtresine dahil değil"
+        )
 
     def alias_dialog(self):
         dialog = tk.Toplevel(self.root)

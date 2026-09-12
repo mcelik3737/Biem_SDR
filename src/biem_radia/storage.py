@@ -39,6 +39,7 @@ class Archive:
                 "destination_id": "TEXT",
                 "call_type": "TEXT",
                 "color_code": "INTEGER",
+                "decoder_slot": "INTEGER",
                 "timing_basis": "TEXT NOT NULL DEFAULT 'sample_clock'",
             }.items():
                 if name not in columns:

@@ -8,7 +8,7 @@ I/Q akışı ayrı DMR discriminator yolundan 48 kHz S16LE olarak yerel DSD-FME 
 
 - Analog ses kullanıcı tarafından doğrulandı. Gerçek RF'den yakalanıp frekans sapması düzeltilmiş DMR kaydının anlaşılır olduğu da kullanıcı tarafından doğrulandı. Kaynak ID, hedef grup ve color code çözüldü. Kalıcı tuner düzeltmesiyle canlı alımdan arşive kayıt testi de 2026-09-12 tarihinde geçti; iki tamamlanmış WAV ve isim eşleştirmesi doğrulandı.
 - İki slotun dosya ve metadata ayrımı otomatik testlerle doğrulandı; aynı anda iki gerçek RF slotu kabul testi bekliyor.
-- DSD-FME bazı simplex/DMO olaylarında fiziksel slot bildirmez. Bu durumda slot `—` kalır; telsizde ayarlanmış değerden tahmin edilmez.
+- DSD-FME bazı simplex/DMO olaylarında fiziksel slot bildirmez. Eşleşen çözücü günlüğü varsa ekranda `1 (çözücü)` gösterilir; bu değer ayrı `decoder_slot` alanında tutulur. Fiziksel `slot` boş kalır ve slot filtresi bu çağrıları içermez. Günlük eşleşmezse `—` gösterilir; telsizde ayarlanmış değerden tahmin edilmez.
 - Çözücünün dosya adında slot yoktur. Aynı saniyede aynı ID/CC değerleriyle iki slot olayı eşleşirse kayıt yanlış kişiye/slot'a bağlanmaz; özgün dosya oturum klasöründe korunur ve uyarı yazılır. Bu durum için ek çözücü entegrasyonu gereklidir.
 - Başlangıç zamanı çözücünün son olay zamanı eksi WAV süresidir; saniye çözünürlüğündeki bu tahmin örnek hassasiyetinde çağrı başlangıcı değildir.
 - Şifreli olaylar içe alınmaz. Hytera repeater IP protokolü entegrasyonu yoktur; Ethernet seçeneği rtl_tcp I/Q içindir.

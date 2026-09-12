@@ -62,6 +62,25 @@ def parse_event(line: str) -> DmrEvent | None:
     )
 
 
+def decoder_slot(log: str, event: DmrEvent) -> int | None:
+    """Read the MS/DM decoder lane, not a verified physical TDMA slot."""
+    stamp = event.observed.astimezone().strftime("%H:%M:%S")
+    slots = set()
+    matched = False
+    for line in log.splitlines():
+        if "Sync:" in line:
+            matched = (
+                line.startswith(stamp + " Sync:")
+                and "DMR MS/DM MODE/MONO" in line
+                and re.search(rf"Color Code={event.color_code}\b", line) is not None
+            )
+        elif matched:
+            m = re.search(r"SLOT ([12]) TGT=(\d+) SRC=(\d+)\b", line)
+            if m and int(m[2]) == event.target and int(m[3]) == event.radio:
+                slots.add(int(m[1]))
+    return next(iter(slots)) if len(slots) == 1 else None
+
+
 class DmrDiscriminator:
     """48 kHz mono discriminator. No voice HPF, de-emphasis, audio gain or squelch."""
 
@@ -184,6 +203,12 @@ class DmrImporter:
             shutil.copyfile(path, temporary)
             temporary.replace(destination)
             self.archive.add_dmr(call_id, self.channel, event, started, duration, destination)
+            log_path = self.directory / "decoder.log"
+            if event.slot is None and log_path.exists():
+                lane = decoder_slot(log_path.read_text("utf-8", errors="replace"), event)
+                if lane is not None:
+                    with self.archive.connect() as db:
+                        db.execute("UPDATE calls SET decoder_slot=? WHERE id=?", (lane, call_id))
             count += 1
         self.completed += count
         return count
