@@ -2,6 +2,8 @@
 
 Tarih: 14 Eylül 2026. Durum: ürün konsepti ve geliştirme hedefi; satışa hazır ürün değildir.
 
+> Güncel adlandırma kararı: **BİEM Radio Integrated Solution**, model **BM-ICC-08**. Aşağıdaki RADIA adları ve görsel tarihsel konsepti yansıtır; son bölümdeki karar bunların yerine geçer. Uygulama ve dosya adlarının değişimi sonraya bırakılmıştır.
+
 ![BİEM RADIA endüstriyel ürün konsepti](biem-radia-concept.png)
 
 ## Ürün amacı
@@ -109,3 +111,13 @@ Hassasiyet, seçicilik, intermodülasyon, sıcaklık aralığı ve kesintisiz ç
 Bu paket dokümantasyon ve tasarım kaydıdır; uygulama kodu veya alıcı ayarları değiştirilmedi. RF/performans testi bu işlemde yapılmadı.
 
 Git doğrulama notu: yalnız bu üç tasarım dosyası commit kapsamındadır. İlk commit denemesinde pre-commit, takip edilen yerel kod değişikliklerini geçici kaldırınca henüz takip edilmeyen yeni modüller eski modellerle uyumsuz kaldı; ty/basedpyright ve test toplama başarısız oldu. Değişiklikler otomatik geri yüklendi. Doküman commitinde kod hookları tek işlem için atlandı; kod testleri geçmiş gibi raporlanmaz. Görsel elle incelendi ve staged diff kontrol edildi.
+
+## Son karar — ürün adı ve model (14 Eylül 2026)
+
+- Kullanıcı RADIA adının bırakılmasını istedi.
+- Cihaz tipi / ürün adı: **BİEM Radio Integrated Solution**.
+- Model: **BM-ICC-08**.
+- İsim değişikliği daha sonra uygulanacak. Şimdilik çalışan yazılım, dosya/klasör yolları, depo adı ve mevcut konsept görseli değiştirilmez.
+- Önceki RADIA açılım ve slogan önerileri kabul edilmiş ürün kimliği sayılmaz. Yeni bir slogan henüz belirlenmedi.
+- Modeldeki ICC harflerine kullanıcı tarafından bir açılım verilmedi. “08” model adı tek başına sekiz eşzamanlı kanalın doğrulandığı anlamına gelmez; kapasite kabul testine bağlıdır.
+- Bu güncelleme yalnız karar kaydıdır; kod veya donanım değişikliği değildir.
