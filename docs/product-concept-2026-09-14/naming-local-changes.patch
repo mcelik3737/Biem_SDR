@@ -1,0 +1,158 @@
+--- a/src/biem_radia/app.py
++++ b/src/biem_radia/app.py
+@@ -18,6 +18,7 @@
+ import sounddevice as sd
+ 
+ from . import playback
++from .branding import MODEL, PRODUCT_NAME, WINDOW_TITLE
+ from .cards import ChannelCard
+ from .devices import DevicesPanel
+ from .digital_log import DigitalLogPanel
+@@ -52,7 +53,7 @@
+                 messagebox.showerror("Kanal ayarları", f"Ayar dosyası okunamadı: {exc}")
+         self.last_count = -1
+         self.closing = False
+-        root.title("BİEM Radia • Dispatcher")
++        root.title(WINDOW_TITLE)
+         root.geometry("1280x920")
+         root.minsize(1120, 760)
+         root.configure(bg="#f3f5f8")
+@@ -109,7 +110,9 @@
+         self.icon = tk.PhotoImage(master=root, file=str(assets / "biem-icon.png")).subsample(10, 10)
+         root.iconphoto(True, self.icon)
+         ttk.Label(header, image=self.logo).pack(side="left", padx=(0, 20))
+-        ttk.Label(header, text="RADIA", font=("Segoe UI", 22, "bold")).pack(side="left")
++        ttk.Label(
++            header, text=f"Radio Integrated Solution  |  {MODEL}", font=("Segoe UI", 16, "bold")
++        ).pack(side="left")
+         ttk.Label(header, text="CANLI KANALLAR  /  KAYIT ARŞİVİ", foreground="#246293").pack(
+             side="right"
+         )
+@@ -234,9 +237,7 @@
+             text="biemelektronik.com ↗",
+             command=lambda: webbrowser.open("https://biemelektronik.com/"),
+         ).pack(anchor="w")
+-        ttk.Label(
+-            about, text="BİEM Radia • Ses kayıt ve dispatcher yazılımı", foreground="#526174"
+-        ).pack(anchor="w", pady=28)
++        ttk.Label(about, text=WINDOW_TITLE, foreground="#526174").pack(anchor="w", pady=28)
+         gain_row = ttk.Frame(self.live_tab)
+         gain_row.pack(fill="x", pady=8)
+         self._field(gain_row, "USB donanım kazancı / dB", self.usb_gain, 12)
+@@ -725,7 +726,8 @@
+     def play(self):
+         if not is_admin():
+             messagebox.showerror(
+-                "Yetki gerekli", "Kayıt dinlemek için Radia'yı Windows yönetici yetkisiyle açın."
++                "Yetki gerekli",
++                f"Kayıt dinlemek için {PRODUCT_NAME} uygulamasını Windows yönetici yetkisiyle açın.",
+             )
+             return
+         selected = self.calls.selection()
+--- a/src/biem_radia/presentation.py
++++ b/src/biem_radia/presentation.py
+@@ -5,6 +5,8 @@
+ from tkinter import ttk
+ 
+ from PIL import Image, ImageTk
++
++from .branding import MODEL
+ 
+ BG = "#edf2f7"
+ INK = "#203045"
+@@ -85,9 +87,9 @@
+         rail = tk.Frame(self.body, bg=NAV, width=178)
+         rail.pack(side="left", fill="y")
+         rail.pack_propagate(False)
+-        tk.Label(rail, text="BİEM / RADIA", bg=NAV, fg="white", font=("Segoe UI", 12, "bold")).pack(
+-            anchor="w", padx=16, pady=(22, 5)
+-        )
++        tk.Label(
++            rail, text=f"BİEM / {MODEL}", bg=NAV, fg="white", font=("Segoe UI", 10, "bold")
++        ).pack(anchor="w", padx=16, pady=(22, 5))
+         tk.Label(rail, text="İZLEME VE KAYIT", bg=NAV, fg="#9bb1c7", font=("Segoe UI", 9)).pack(
+             anchor="w", padx=16, pady=(0, 18)
+         )
+--- a/src/biem_radia/map_pack.py
++++ b/src/biem_radia/map_pack.py
+@@ -69,7 +69,9 @@
+ 
+ 
+ def main():
+-    parser = argparse.ArgumentParser(description="İsteğe bağlı Radia XYZ harita paketi yükle")
++    parser = argparse.ArgumentParser(
++        description="BİEM Radio Integrated Solution XYZ harita paketi yükle"
++    )
+     parser.add_argument("archive", type=Path)
+     parser.add_argument("--project", type=Path, default=Path.cwd())
+     args = parser.parse_args()
+--- a/src/biem_radia/__init__.py
++++ b/src/biem_radia/__init__.py
+@@ -1 +1 @@
+-"""BIEM Radia radio recording workstation."""
++"""BIEM Radio Integrated Solution recording workstation, model BM-ICC-08."""
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,6 @@
+-# BİEM Radia Dispatcher
++# BİEM Radio Integrated Solution — BM-ICC-08
++
++Güncel ürün adı budur. Eski `biem_radia` paket adı, `.radia` kayıt biçimi ve mevcut başlatıcılar geriye uyumluluk için korunur. Yeni başlatıcı: `Start-BM-ICC-08.cmd`; yönetici: `Start-BM-ICC-08-Admin.cmd`. Model adı kapasite doğrulaması değildir.
+ 
+ Windows üzerinde RTL-SDR ile analog FM ve DMR alımı, konuşma kaydı ve yerel ses arşivi. Analog ses ve gerçek RF'den çözülen DMR sesinin anlaşılırlığı kullanıcı tarafından doğrulandı. Saha kabulü tamamlanmış kesintisiz kayıt sistemi değildir.
+ 
+@@ -6,7 +8,7 @@
+ 
+ ## Başlatma
+ 
+-`D:\Projects\Biem\_SDR\Start-Radia.cmd` dosyasını çift tıklayın. SDR# aynı USB alıcıyı kullanıyorsa önce SDR# alımını durdurun. SDR# dosyaları ve sürücü kurulumu değiştirilmez.
++`D:\Projects\Biem\_SDR\Start-BM-ICC-08.cmd` dosyasını çift tıklayın. SDR# aynı USB alıcıyı kullanıyorsa önce SDR# alımını durdurun. SDR# dosyaları ve sürücü kurulumu değiştirilmez.
+ 
+ Yeni kurulum için Python 3.12+ (bu PC'de 3.14, 64 bit), Tk ve uv gerekir:
+ 
+@@ -16,7 +18,7 @@
+ .\Setup-Radia.ps1
+ .\Setup-DMR.ps1
+ .\Setup-TETRA.ps1
+-.\Start-Radia.cmd
++.\Start-BM-ICC-08.cmd
+ ```
+ 
+ Kurulum, RTL-SDR kullanıcı alanı kütüphanesini yalnızca projenin `vendor` klasörüne indirir; Windows USB sürücüsü kurmaz veya değiştirmez. Bu PC'nin mevcut USB sürücüsüyle donanım erişimi doğrulandı.
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -5,7 +5,7 @@
+ [project]
+ name = "biem-radia"
+ version = "0.2.0"
+-description = "BIEM Radia radio dispatcher, selective squelch and digital voice archive"
++description = "BIEM Radio Integrated Solution BM-ICC-08, selective squelch and digital voice archive"
+ requires-python = ">=3.12"
+ dependencies = [
+     "numpy>=2.2",
+@@ -15,6 +15,7 @@
+ ]
+ 
+ [project.scripts]
++biem-icc = "biem_radia.app:main"
+ biem-radia = "biem_radia.app:main"
+ 
+ [dependency-groups]
+--- /dev/null
++++ b/src/biem_radia/branding.py
+@@ -0,0 +1,5 @@
++"""Public product identity; storage identifiers remain backward compatible."""
++
++PRODUCT_NAME = "BİEM Radio Integrated Solution"
++MODEL = "BM-ICC-08"
++WINDOW_TITLE = f"{PRODUCT_NAME} • {MODEL}"
+--- /dev/null
++++ b/Start-BM-ICC-08.cmd
+@@ -0,0 +1,2 @@
++@echo off
++call "%~dp0Start-Radia.cmd"
+--- /dev/null
++++ b/Start-BM-ICC-08-Admin.cmd
+@@ -0,0 +1,2 @@
++@echo off
++call "%~dp0Start-Radia-Admin.cmd"

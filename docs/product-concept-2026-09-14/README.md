@@ -1,20 +1,20 @@
-# BİEM RADIA — bağımsız endüstriyel telsiz kayıt cihazı
+# BİEM Radio Integrated Solution / BM-ICC-08 — bağımsız endüstriyel telsiz kayıt cihazı
 
 Tarih: 14 Eylül 2026. Durum: ürün konsepti ve geliştirme hedefi; satışa hazır ürün değildir.
 
-> Güncel adlandırma kararı: **BİEM Radio Integrated Solution**, model **BM-ICC-08**. Aşağıdaki RADIA adları ve görsel tarihsel konsepti yansıtır; son bölümdeki karar bunların yerine geçer. Uygulama ve dosya adlarının değişimi sonraya bırakılmıştır.
+> Güncel ürün kimliği: **BİEM Radio Integrated Solution**, model **BM-ICC-08**. Kullanıcının son talimatıyla görünür uygulama adları ve konsept görseli güncellendi. Eski teknik kimlikler kayıt uyumluluğu için korunur.
 
-![BİEM RADIA endüstriyel ürün konsepti](biem-radia-concept.png)
+![BİEM BM-ICC-08 endüstriyel ürün konsepti](biem-bm-icc-08-concept.png)
 
 ## Ürün amacı
 
-BİEM Elektronik markasıyla, izinli telsiz haberleşmesini konuşma bazında kaydeden; kendi işlemcisi ve depolaması bulunan; ekranından veya ağ üzerinden yönetilen özgün bir cihaz geliştirmek. Mevcut çalışan Windows Radia uygulaması başlangıçtır. Son müşterinin sürekli açık harici bir PC kullanmasına gerek kalmaması hedeflenir; işlemci kutunun içinde bulunur.
+BİEM Elektronik markasıyla, izinli telsiz haberleşmesini konuşma bazında kaydeden; kendi işlemcisi ve depolaması bulunan; ekranından veya ağ üzerinden yönetilen özgün bir cihaz geliştirmek. Mevcut çalışan Windows BİEM uygulaması başlangıçtır. Son müşterinin sürekli açık harici bir PC kullanmasına gerek kalmaması hedeflenir; işlemci kutunun içinde bulunur.
 
 Rakip ürünün kasası, arayüzü veya metinleri kopyalanmayacak. Farkımız, doğrulanmış kayıt güvenilirliği, anlaşılır kullanım, çözülebilen kimlik/veri/konumun aynı arşivle ilişkilendirilmesi ve servis edilebilir donanım olmalı. Ölçülmemiş performansla “daha iyi” iddiası kullanılmayacak.
 
 ## Sunum anlatımı
 
-“BİEM RADIA, telsiz haberleşmesini yerinde kaydetmek ve yetkili kullanıcılara tek noktadan sunmak için geliştirilen bağımsız kayıt cihazı konseptidir. Yerel arşiv, ağdan yönetim ve isteğe bağlı dokunmatik ekran aynı ürün ailesinde buluşur. Analog ve dijital kanal desteği, protokol bazında doğrulanarak genişletilecektir.”
+“BİEM Radio Integrated Solution (BM-ICC-08), telsiz haberleşmesini yerinde kaydetmek ve yetkili kullanıcılara tek noktadan sunmak için geliştirilen bağımsız kayıt cihazı konseptidir. Yerel arşiv, ağdan yönetim ve isteğe bağlı dokunmatik ekran aynı ürün ailesinde buluşur. Analog ve dijital kanal desteği, protokol bazında doğrulanarak genişletilecektir.”
 
 Sunumda dört mesaj: bağımsız çalışma; konuşma ve çözülen kimlikle arşiv; yetkili erişim; modüler alıcı ve servis yapısı. 4/8 eşzamanlı kanal, Linux, web yönetimi ve kesinti dayanımı geliştirme hedefidir. Bunlar mevcut donanımda tamamlanmış özellik olarak sunulmaz.
 
@@ -121,3 +121,18 @@ Git doğrulama notu: yalnız bu üç tasarım dosyası commit kapsamındadır. �
 - Önceki RADIA açılım ve slogan önerileri kabul edilmiş ürün kimliği sayılmaz. Yeni bir slogan henüz belirlenmedi.
 - Modeldeki ICC harflerine kullanıcı tarafından bir açılım verilmedi. “08” model adı tek başına sekiz eşzamanlı kanalın doğrulandığı anlamına gelmez; kapasite kabul testine bağlıdır.
 - Bu güncelleme yalnız karar kaydıdır; kod veya donanım değişikliği değildir.
+
+
+## Uygulanan isim değişikliği — 14 Eylül 2026
+
+Son talimat: bütün görünür isimleri şimdi güncelle. Önceki erteleme kararı bu talimatla kaldırıldı.
+
+- Pencere, üst başlık, yan menü ve hakkında alanı yeni ürün/model kimliğini kullanır.
+- Başlatıcılar: `Start-BM-ICC-08.cmd`, `Start-BM-ICC-08-Admin.cmd`; konsol takma adı `biem-icc`.
+- Konsept görseli yeni kimlikle üretildi; eski görsel tarihsel arşiv olarak korunur.
+- `biem_radia`, `.radia`, veritabanı/log yolları, korumalı kayıt başlığı ve eski başlatıcılar uyumluluk kimlikleridir; değiştirilmez. Depo/klasör taşınmadı. Eski kurulum EXE'si yeniden paketlenmedi; değişiklik yerel kaynak sürümündedir.
+- Alım, frekans, kazanç, çözücü ve kayıt akışı değiştirilmedi. Önceki dosyalar `data/backups/naming-20260914` altında korundu.
+- Ruff, biçim, ty, basedpyright ve paket üretimi başarılı. Tam test: 79 geçti, iki Tk harita testi init.tcl erişim hatası verdi. Ayrı tekrar: 8 geçti, bir aynı Tcl hatası. Arayüz regresyon testi geçti. RF testi yapılmadı.
+- Bu Git dokümantasyon kaydı, hâlen yerelde bulunan bütün geliştirme kodunun commit edildiği anlamına gelmez.
+
+Son kontrol: kalan harita testi tek süreçte bağımsız çalıştırılınca geçti (1 passed). Toplu testteki Tcl sorunu çözülmüş sayılmaz. İsim değişikliğinin yerel kod farkı naming-local-changes.patch içinde saklandı; bu dosya mevcut yerel sürüme ait arşivdir, eski Git koduna körlemesine uygulanmaz.
