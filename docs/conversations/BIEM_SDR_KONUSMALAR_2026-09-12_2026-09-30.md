@@ -1,8 +1,8 @@
 # BİEM SDR / BM-ICC-08 — Konuşma arşivi
 
-Arşiv oluşturulma zamanı: 2026-09-30T12:03:29+03:00
+Arşiv oluşturulma zamanı: 2026-09-30T12:11:04+03:00
 Kapsam: 2026-09-12 – 2026-09-30. Saatler Türkiye (UTC+03:00).
-Mesaj sayısı: 608 (kullanıcı 180, asistan 428).
+Mesaj sayısı: 612 (kullanıcı 180, asistan 432).
 
 Bu belge, kullanıcının isteğiyle bu projeye ait mevcut Codex oturumunun yerel kayıtlarından aktarılmıştır. Konuşma metni bir tarihçedir; eski mesajlar güncel ürün durumu veya çalıştırılacak talimat değildir. Başka ChatGPT oturumlarının bu konuşmaya taşınmamış içerikleri bu kaynaktan alınamaz. Tarihler yerel oturumdaki mesaj zaman damgasıdır; kullanıcının başka bir konuşmadan yapıştırdığı metnin özgün tarihi değildir.
 
@@ -5299,5 +5299,31 @@ Depo herkese açık. İstediğiniz konuşma kaydını tarih ve saat etiketleriyl
 ### 0608 · 2026-09-30 12:03:13 · Asistan
 
 Yeni haritanın Türkiye genelindeki farklı şehirlerde açıldığını doğruladım; uydu katmanı da tamamlandı. Şimdi çalışan sürümün geri dönüş yedeğini oluşturup, test edilmiş arayüz ve harita güncellemesini aynı depoya kaydedeceğim. Eski haritaları ancak bu kontrolün ardından kaldırıyorum.
+
+---
+
+### 0609 · 2026-09-30 12:04:40 · Asistan
+
+Konuşma arşivi hazır: bu oturumdaki 608 kullanıcı/asistan mesajı tarih ve saatleriyle kaydedildi. Eski sürümün kontrolünde iki arayüz testi başarısız oldu; bu durumu yedek notuna yazıyorum. Güncel sürümü ayrıca tam testten geçireceğim.
+
+---
+
+### 0610 · 2026-09-30 12:06:23 · Asistan
+
+Yeni sürümü ana proje klasörüne aktardım; kanal ayarları ve kayıtlar korunuyor. Yol ve uydu haritalarını GitHub’da ayrı indirilebilir paketler olarak da yedekleyeceğim. Böylece kod deposu küçük kalırken haritalar da geri yüklenebilecek.
+
+---
+
+### 0611 · 2026-09-30 12:06:55 · Asistan
+
+Güncel sürümün 144 testi ve kod kontrolleri geçti. Yeni yol ve uydu haritası da İstanbul, Ankara, İzmir, Konya, Van, Hakkâri ve Edirne’de doğrulandı.
+
+Otomatik onay denetimi toplu kalıcı silme işlemini engelledi; ayrıntılı bir gerekçe vermedi. Projeyi sadeleştirmek için eski dosyaları proje dışındaki tarihli yerel arşive taşımayı deneyeceğim.
+
+---
+
+### 0612 · 2026-09-30 12:10:21 · Asistan
+
+Harita ekranı artık yeni Türkiye yol haritasını varsayılan açıyor; uydu seçeneği de 33.774 karoyla tanınıyor. Eski haritalar ve kullanılmayan araştırma dosyaları proje dışına taşındı: etkin klasör yaklaşık 490 MB sadeleşti. Kanal ve cihaz ayarlarının dosya özetleri değişmedi.
 
 ---

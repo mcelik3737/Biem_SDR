@@ -18,6 +18,7 @@ class AutoChannel:
         self.evidence = ProtocolEvidence()
         self.analog_evidence = AnalogEvidence()
         self.mode = None
+        self.monitor = None
         self.last_label = None
         self.dmr = None
         self.tetra = None
@@ -80,6 +81,18 @@ class AutoChannel:
             analog_level if allowed_analog else -120,
         )
         self.mode = selected
+        if self.monitor is not None:
+            if selected == "DMR":
+                for stream, samples, rate in getattr(self.dmr, "audio_packets", []):
+                    self.monitor.feed(
+                        self.channel.name,
+                        stream,
+                        samples,
+                        rate,
+                        "DMR ses akışı · slot doğrulanmadı",
+                    )
+            elif selected == "NFM" and above:
+                self.monitor.feed(self.channel.name, "analog", audio, 16000, "Analog ses")
         label = self.evidence.label(selected)
         if label != self.last_label:
             event = {

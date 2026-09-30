@@ -1,0 +1,32 @@
+[
+  {
+    "path": "external",
+    "bytes": 41336015.0,
+    "files": 1029
+  },
+  {
+    "path": "legacy\\cpp-prototype",
+    "bytes": 171561.0,
+    "files": 67
+  },
+  {
+    "path": "data\\map-import",
+    "bytes": 44409194.0,
+    "files": 7880
+  },
+  {
+    "path": "data\\map-packs\\turkey_9_katman_genisletilmis-20260912-212035",
+    "bytes": 387296709.0,
+    "files": 167720
+  },
+  {
+    "path": "data\\map-packs\\turkey_9_katman-fdeea365ec1c",
+    "bytes": 16446656.0,
+    "files": 3397
+  },
+  {
+    "path": "docs\\BIEM_RADIA_CHATGPT_TASARIM_PAKETI_2026-09-12.zip",
+    "bytes": 259935.0,
+    "files": 1
+  }
+]

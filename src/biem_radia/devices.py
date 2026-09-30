@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import tkinter as tk
 from tkinter import ttk
 
@@ -13,6 +14,8 @@ class DevicesPanel(ttk.Frame):
         self.app = app
         self.path = app.archive.root / "device.json"
         self.items = []
+        self.detected: bool | None = None
+        self.last_refresh = 0.0
         self.choice = tk.StringVar()
         self.saved = {}
         self.status = tk.StringVar(value="Cihaz listesi henüz yenilenmedi.")
@@ -66,7 +69,15 @@ class DevicesPanel(ttk.Frame):
             except OSError as exc:
                 self.status.set(str(exc))
 
+    def poll(self):
+        if time.monotonic() - self.last_refresh < 5:
+            return
+        if self.app.receiver.running or self.app.radio.running or self.app.spectrum.worker.running:
+            return
+        self.refresh()
+
     def refresh(self):
+        self.last_refresh = time.monotonic()
         dll = self.app.project / "vendor/rtl-sdr/package/x64/rtlsdr.dll"
         self.table.delete(*self.table.get_children())
         self.items = []
@@ -77,6 +88,7 @@ class DevicesPanel(ttk.Frame):
                     self.items = [dict(item) for item in library.inventory()]
                 finally:
                     library.close()
+            self.detected = bool(self.items)
             labels = []
             for item in self.items:
                 labels.append(
@@ -114,6 +126,7 @@ class DevicesPanel(ttk.Frame):
                 if not self.saved.get("serial") or len(matches) > 1
                 else -1
             )
+            self.detected = selected >= 0
             if selected >= 0:
                 self.select.current(selected)
             else:
@@ -124,6 +137,7 @@ class DevicesPanel(ttk.Frame):
                 else "USB RTL-SDR bağlı değil veya sürücü cihazı listelemiyor."
             )
         except (OSError, ValueError) as exc:
+            self.detected = None
             self.status.set(f"Cihaz listesi alınamadı: {exc}")
         self.network.set(
             f"Ethernet SDR / rtl_tcp: {self.app.host.get()}:{self.app.port.get()} • {'Ana alım çalışıyor' if self.app.source.get() == 'rtl_tcp' and self.app.receiver.running else 'Bağlantı doğrulanmadı'}\nHytera HR659: {self.app.repeater_panel.fields['repeater_ip'].get() or 'IP girilmedi'} • Sürücü henüz etkin değil"

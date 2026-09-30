@@ -39,3 +39,7 @@ Kullanıcının verdiği yolun mevcut karşılığı `D:\Desktop_Yedek\MAPS\Yeni
 - 73 donanımsız test, kalite kontrolleri ve 0.2.0 paket derlemesi geçti. Canlı kullanıcı ekranındaki akıcılık ve yeni kapsama görsel kabulü bekleniyor. Harita internet kullanmaz; RF alımında değişiklik yapılmadı.
 
 Yeni paketi görmek için Radia yeniden açılır; Harita listesinden **Türkiye yol haritası - genişletilmiş (paket)** seçilir. **Paket alanı** yüksek ayrıntı bölgesine götürür; **+** veya tekerlekle yaklaşılır. Son telsiz konumu bu bölgeye taşınmaz. Yeni z17 kapsaması bütün Türkiye için sokak ayrıntısı anlamına gelmez.
+
+## 30 Eylül 2026 güncellemesi
+
+Yukarıdaki Google/9 katman notları geçmiş entegrasyon kaydıdır. Bu paketler yeni yol ve uydu haritaları doğrulandıktan sonra etkin projeden çıkarılıp yerel arşive taşındı. Güncel paketler ve geri yükleme adımları [yedek notunda](BACKUP_2026-09-30.md), görsel kullanım [dokunmatik konsol notunda](TOUCH_CONSOLE_2026-09-30.md).

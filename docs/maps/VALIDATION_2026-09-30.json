@@ -1,0 +1,185 @@
+{
+  "tested_local": "2026-09-30",
+  "vector_package": "D:\\Projects\\Biem\\_SDR\\data\\map-packs\\turkey-shortbread-20260930\\turkey-shortbread-1.0.mbtiles",
+  "satellite_manifest": {
+    "format": "biem-xyz-v1",
+    "name": "Türkiye uydu • EOX 2016",
+    "tile_count": 33774,
+    "bytes": 529269100,
+    "source": "https://cloudless.eox.at/license-non-commercial",
+    "license": "CC BY 4.0",
+    "attribution": "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)",
+    "description": "Türkiye geneli z12; İstanbul, Ankara, İzmir, Konya, Van merkezlerinde z14. 2016–2017 uydu mozaiği; güncel görüntü değildir.",
+    "bbox": [
+      25.5,
+      35.7,
+      44.9,
+      42.2
+    ],
+    "country_maxzoom": 12,
+    "city_maxzoom": 14,
+    "network_required_for_viewing": false
+  },
+  "places": [
+    {
+      "name": "Istanbul",
+      "road_stats": {
+        "requested": 12,
+        "loaded": 12,
+        "zoom": 14,
+        "features": {
+          "land": 881,
+          "sites": 308,
+          "ocean": 21,
+          "water_polygons": 19,
+          "buildings": 24695,
+          "street_polygons": 52,
+          "streets": 7685,
+          "ferries": 153,
+          "pier_lines": 10,
+          "place_labels": 86,
+          "water_polygons_labels": 2,
+          "street_labels": 3701,
+          "streets_polygons_labels": 52
+        }
+      },
+      "satellite_zoom": 14,
+      "render_seconds": 1.52
+    },
+    {
+      "name": "Ankara",
+      "road_stats": {
+        "requested": 15,
+        "loaded": 15,
+        "zoom": 14,
+        "features": {
+          "land": 1456,
+          "sites": 481,
+          "water_polygons": 55,
+          "water_lines": 22,
+          "buildings": 25422,
+          "street_polygons": 115,
+          "streets": 9862,
+          "place_labels": 103,
+          "water_polygons_labels": 4,
+          "street_labels": 3608,
+          "streets_polygons_labels": 115
+        }
+      },
+      "satellite_zoom": 14,
+      "render_seconds": 1.7
+    },
+    {
+      "name": "Izmir",
+      "road_stats": {
+        "requested": 15,
+        "loaded": 15,
+        "zoom": 14,
+        "features": {
+          "land": 590,
+          "sites": 394,
+          "ocean": 8,
+          "water_polygons": 24,
+          "water_lines": 26,
+          "buildings": 101048,
+          "street_polygons": 9,
+          "streets": 11375,
+          "ferries": 34,
+          "pier_lines": 3,
+          "place_labels": 175,
+          "water_polygons_labels": 5,
+          "street_labels": 4130,
+          "streets_polygons_labels": 9
+        }
+      },
+      "satellite_zoom": 14,
+      "render_seconds": 3.8
+    },
+    {
+      "name": "Konya",
+      "road_stats": {
+        "requested": 16,
+        "loaded": 16,
+        "zoom": 14,
+        "features": {
+          "land": 896,
+          "sites": 363,
+          "water_polygons": 29,
+          "water_lines": 1,
+          "buildings": 15356,
+          "street_polygons": 8,
+          "streets": 8325,
+          "place_labels": 63,
+          "street_labels": 2505,
+          "streets_polygons_labels": 8
+        }
+      },
+      "satellite_zoom": 14,
+      "render_seconds": 1.4
+    },
+    {
+      "name": "Van",
+      "road_stats": {
+        "requested": 12,
+        "loaded": 12,
+        "zoom": 14,
+        "features": {
+          "land": 508,
+          "sites": 99,
+          "water_polygons": 5,
+          "water_lines": 81,
+          "buildings": 12606,
+          "streets": 2919,
+          "place_labels": 26,
+          "water_polygons_labels": 15,
+          "street_labels": 159
+        }
+      },
+      "satellite_zoom": 14,
+      "render_seconds": 0.6
+    },
+    {
+      "name": "Hakkari",
+      "road_stats": {
+        "requested": 12,
+        "loaded": 11,
+        "zoom": 14,
+        "features": {
+          "land": 27,
+          "sites": 9,
+          "water_polygons": 1,
+          "water_lines": 19,
+          "buildings": 98,
+          "streets": 609,
+          "place_labels": 19,
+          "street_labels": 25
+        }
+      },
+      "satellite_zoom": 12,
+      "render_seconds": 0.08
+    },
+    {
+      "name": "Edirne",
+      "road_stats": {
+        "requested": 15,
+        "loaded": 15,
+        "zoom": 14,
+        "features": {
+          "land": 1205,
+          "sites": 117,
+          "water_polygons": 18,
+          "water_lines": 72,
+          "buildings": 3053,
+          "street_polygons": 2,
+          "streets": 4165,
+          "place_labels": 25,
+          "street_labels": 1896,
+          "streets_polygons_labels": 2
+        }
+      },
+      "satellite_zoom": 12,
+      "render_seconds": 0.58
+    }
+  ],
+  "satellite_tiles": 33774
+}

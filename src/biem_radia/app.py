@@ -6,7 +6,6 @@ import logging
 import math
 import os
 import queue
-import sqlite3
 import tkinter as tk
 import wave
 import webbrowser
@@ -56,7 +55,7 @@ class RadiaApp:
         self.closing = False
         root.title(WINDOW_TITLE)
         root.geometry("1280x920")
-        root.minsize(1120, 760)
+        root.minsize(800, 480)
         root.configure(bg="#f3f5f8")
         root.protocol("WM_DELETE_WINDOW", self.close)
         style = ttk.Style(root)
@@ -344,6 +343,7 @@ class RadiaApp:
         card_canvas.pack(side="left", fill="both", expand=True)
         self.card_grid = ttk.Frame(card_canvas)
         card_window = card_canvas.create_window((0, 0), window=self.card_grid, anchor="nw")
+        self.card_canvas, self.card_window = card_canvas, card_window
         self.card_grid.bind(
             "<Configure>", lambda e: card_canvas.configure(scrollregion=card_canvas.bbox("all"))
         )
@@ -756,6 +756,7 @@ class RadiaApp:
         selected = self.calls.selection()
         if not selected:
             return
+        self.receiver.monitor.stop()
         try:
             path = self.archive.audio_path(selected[0])
             with self.archive.connect() as db:
@@ -767,15 +768,13 @@ class RadiaApp:
     def poll(self):
         self.map_panel.poll()
         self.digital_log.poll()
-        if self.tabs.select() == str(self.inbox):
-            try:
-                self.inbox.poll()
-            except (OSError, sqlite3.Error):
-                self.inbox.note.configure(text="Mesaj günlüğü okunamadı; yeniden denenecek.")
+        self.inbox.poll()
         try:
             while True:
                 message = self.receiver.messages.get_nowait()
                 kind = message["kind"]
+                if hasattr(self, "presentation"):
+                    self.presentation.receiver_event(message)
                 if kind in ("status", "error"):
                     self.status.set(message["text"])
                 elif kind == "tuning":
@@ -829,6 +828,7 @@ class RadiaApp:
         except queue.Empty:
             pass
         self.spectrum.poll()
+        self.devices.poll()
         if (
             self.closing
             and not self.receiver.running

@@ -1,0 +1,17 @@
+[
+  {
+    "directory": "dsd-fme",
+    "remote": "https://github.com/lwvmobile/dsd-fme.git",
+    "commit": "4139b19bfeb620e28c1817a58b8bc7720e230974"
+  },
+  {
+    "directory": "SDRPlusPlus",
+    "remote": "https://github.com/AlexandreRouma/SDRPlusPlus.git",
+    "commit": "8c9f5ee8fe405775bfcd62c8c8f8c0fc928a64af"
+  },
+  {
+    "directory": "tetra-plugin",
+    "remote": "https://github.com/vgpastor/SDR-Tetra-Plugin.git",
+    "commit": "6ec207a806ebca4b8c5cefc9f86e3cb31055cf84"
+  }
+]

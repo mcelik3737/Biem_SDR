@@ -18,6 +18,7 @@ from scipy import signal
 
 from .digital_log import DigitalJournal
 from .filenames import available_path, recording_name
+from .live_audio import WavTap
 from .models import SAMPLE_RATE, Channel
 from .storage import Archive
 
@@ -289,6 +290,8 @@ class DmrBackend:
             raise RuntimeError("DSD-FME bulunamadı. Setup-DMR.ps1 dosyasını çalıştırın.")
         self.directory = archive.root / "dmr-sessions" / uuid.uuid4().hex
         self.directory.mkdir(parents=True)
+        self.audio_tap = WavTap(self.directory)
+        self.audio_packets = []
         self.importer = DmrImporter(archive, channel, self.directory)
         self.log = (self.directory / "decoder.log").open("wb")
         self.journal = DigitalJournal(self.directory, channel)
@@ -377,6 +380,13 @@ class DmrBackend:
             if time.monotonic() - self.journal.updated < 2:
                 self.importer.last_metadata = self.journal.latest
             self.last_scan = time.monotonic()
+        packets = self.audio_tap.poll()
+        cc_allowed = self.channel.color_code is None or (
+            self.journal.cc == self.channel.color_code
+            and time.monotonic() - self.journal.sync_time < 2
+        )
+        permitted = self.importer.recording_check
+        self.audio_packets = packets if cc_allowed and (permitted is None or permitted()) else []
 
     def close(self):
         if self.capture is not None:

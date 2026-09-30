@@ -35,6 +35,7 @@ class ChannelCard:
         self.details = tk.StringVar(value="Henüz veri yok")
         self.level = tk.DoubleVar(value=0)
         self.channel: Channel | None = None
+        self.latest_state: dict | None = None
         head = ttk.Frame(self.frame)
         head.pack(fill="x")
         ttk.Checkbutton(head, text="Etkin", variable=self.enabled).pack(side="left")
@@ -180,6 +181,7 @@ class ChannelCard:
         )
 
     def telemetry(self, state):
+        self.latest_state = state
         self.peak.set("Tepe: — MHz\nΔ — kHz")
         self.peak_color = "#5c6e83"
         if state is None:

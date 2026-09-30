@@ -8,6 +8,7 @@ version = "0.2.0"
 description = "BIEM Radio Integrated Solution BM-ICC-08, selective squelch and digital voice archive"
 requires-python = ">=3.12"
 dependencies = [
+    "mapbox-vector-tile>=2.2.0",
     "numpy>=2.2",
     "pillow>=11",
     "scipy>=1.15",
@@ -51,3 +52,7 @@ typeCheckingMode = "basic"
 
 [tool.ty.src]
 include = ["src"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src/biem_radia", "/pyproject.toml", "/README.md", "/docs", "/tests"]
+exclude = ["**/*.zip"]

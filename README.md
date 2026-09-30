@@ -4,7 +4,7 @@ Güncel ürün adı budur. Eski `biem_radia` paket adı, `.radia` kayıt biçimi
 
 Windows üzerinde RTL-SDR ile analog FM ve DMR alımı, konuşma kaydı ve yerel ses arşivi. Analog ses ve gerçek RF'den çözülen DMR sesinin anlaşılırlığı kullanıcı tarafından doğrulandı. Saha kabulü tamamlanmış kesintisiz kayıt sistemi değildir.
 
-**0.2.0:** Altı kanal kutusu, ayrı arşiv/ayar sekmeleri, üstte açılır FM RADIO, CTCSS/DCS/ters DCS, deneysel TETRA/APCO25/NXDN adaptörleri ve okunabilir ses dosyası adları eklendi. Her modun doğrulama durumu ve kullanım ayrıntıları [Kanal ve mod kılavuzunda](docs/CHANNELS_AND_MODES.md).
+**30 Eylül 2026 güncellemesi:** Etkin kanala göre yerleşen dokunmatik konsol, açık/koyu tema, kanal başına canlı dinleme ve ses göstergesi, mesaj sayacı, arşivde slot/CC ayrıntıları ve Türkiye çevrimdışı yol/uydu haritaları. [Güncel kullanım ve doğrulama](docs/TOUCH_CONSOLE_2026-09-30.md), [yedek ve geri yükleme](docs/BACKUP_2026-09-30.md), [tarih etiketli konuşma arşivi](docs/conversations/BIEM_SDR_KONUSMALAR_2026-09-12_2026-09-30.md). Canlı dinlemenin yeni akışı gerçek RF kabul testi bekliyor.
 
 ## Başlatma
 
@@ -31,18 +31,18 @@ Kurulum, RTL-SDR kullanıcı alanı kütüphanesini yalnızca projenin `vendor` 
 4. 5–10 saniye konuşun, bırakın; 2–3 saniye bekleyip tekrar konuşun.
 5. Squelch kapandıktan yaklaşık 0,6 saniye sonra kayıt arşive eklenir. Kanal adı ve `YYYY-MM-DD` yerel tarihle arayın. Kaydı seçip **Seçili kaydı dinle** düğmesine basın veya çift tıklayın.
 
-Alıcı açıkken giriş kutularını değiştirmek çalışan kanal ayarlarını değiştirmez. Listede görünen kanallar alımda kullanılır. 0,3 saniye ön tampon ve 0,6 saniye son bekleme kayda dahildir; süre, WAV dosyasının gerçek süresidir. Bu algoritma insan konuşması tanımaz; eşik üstü taşıyıcı/gürültü de kayıt açabilir. Sürekli taşıyıcı 180 saniyelik parçalara bölünür.
+Alıcı açıkken giriş kutularını değiştirmek çalışan kanal ayarlarını değiştirmez. Etkin kanallar alımda kullanılır. 0,3 saniye ön tampon ve 0,6 saniye son bekleme analog kayda dahildir; süre, ses dosyasının gerçek süresidir. Eşik üstü taşıyıcı/gürültü de kayıt açabilir. Kayıt en fazla 90 saniye; sonra 2 saniye ara verilir. TETRA sessiz taşıyıcı beklemesi en fazla 20 saniyedir.
 
 ## Kayıtların konumu
 
-- `data/recordings/YYYY-MM-DD/`: analog 16 kHz, DMR 8 kHz; 16 bit, mono WAV; kullanıcı kanal adı dosya yolu olarak kullanılmaz.
+- `data/recordings/YYYY-MM-DD/`: analog 16 kHz, DMR 8 kHz; 16 bit, mono ses. Masaüstünde tamamlanan kayıtlar `.wav.radia` biçiminde Windows DPAPI ile korunur.
 - `data/radia.sqlite3`: UTC başlangıç zamanı, kanal, frekans, süre, kaynak ve kapanma nedeni. Ekran ve tarih araması PC'nin yerel saatini kullanır.
 - `data/radia.log`: teknik hatalar; SQLite `events` tablosu alım başlangıcı ve hata olaylarını içerir.
 - `data/channels.json`: kaydedilen kanal ayarları.
 - `data/receiver.json`: PPM, USB kazancı ve kaynak ayarları.
 - `data/receiver-status.json`: en son alıcı telemetrisi; geçmiş izleme servisi değildir.
 
-Açık kayıt `.wav.part` uzantısıyla tutulur; normal durdurma veya yakalanan bağlantı hatasında WAV tamamlanır. Ani elektrik kesintisinden kalan `.part` veya veritabanına eklenememiş WAV dosyaları otomatik kurtarılmaz; silmeyin. İlk sürüm kayıt silmez, saklama süresi uygulamaz, disk kotası veya kullanıcı yetkilendirmesi sunmaz. Yedekleme ve disk kapasitesi saha aşamasında ayrıca yapılandırılmalıdır.
+Açık kayıt ve çözücünün geçici WAV dosyaları tamamlanana kadar düz ses içerebilir. Ani elektrik kesintisinden kalan `.part` veya veritabanına eklenememiş WAV dosyalarını silmeyin. Arşiv dinlemek için uygulama aynı Windows hesabıyla yönetici olarak açılır. DPAPI koruması Windows profiline bağlıdır; yalnız dosyayı başka PC'ye kopyalamak oynatmayı garanti etmez. Ayrıntılar: [kayıt koruması](docs/SECURITY_AND_DIGITAL_DATA.md). Saklama süresi ve disk kotası henüz uygulanmaz.
 
 ## Eşzamanlı kanallar ve Ethernet
 
@@ -68,12 +68,12 @@ python -m uv build
 
 Testler donanımdan bağımsızdır; gerçek USB'yi açmaz ve canlı yayınları test verisi olarak kullanmaz. Kaynak kod `src/biem_radia`, testler `tests` altındadır. `data`, `vendor` ve `external` Git dışında tutulur.
 
-Git deposu bu proje klasöründe; `origin`: https://github.com/mcelik3737/Biem_SDR.git . Doğrulanmış analog sürüm `analog-verified-2026-09-12` etiketiyle korunur. Önceki C++ taslağı `legacy/cpp-prototype` altındadır. Ses kayıtları, ID ayarları ve çalışma verileri Git dışında kalır.
+Git deposu bu proje klasöründe; `origin`: https://github.com/mcelik3737/Biem_SDR.git . Doğrulanmış analog sürüm `analog-verified-2026-09-12` etiketiyle korunur. Eski C++ taslağı `working-before-cleanup-2026-09-30` etiketinden geri alınabilir. Ses kayıtları, ID ayarları ve çalışma verileri Git dışında kalır. Büyük haritalar ayrı Release ekleridir.
 
 ## Referanslar ve lisans sınırı
 
 - [Hytera Smart Dispatch Plus](https://www.hytera.com/eu/products/smart-dispatch-plus.html): ürün kapsamı referansı; bu prototip Hytera uyumluluğu iddia etmez.
-- [SDR++](https://github.com/AlexandreRouma/SDRPlusPlus): `external/SDRPlusPlus` altında bağımsız referans klonu, doğrulanmış commit kimliği için `docs/THIRD_PARTY.md` dosyasına bakın. SDR++ kodu uygulamaya kopyalanmadı.
+- [SDR++](https://github.com/AlexandreRouma/SDRPlusPlus): araştırma referansı; kullanılmayan klon yerel arşive taşındı. Commit kimlikleri `docs/maps/REMOVED_REFERENCE_CHECKOUTS_2026-09-30.json` içinde. SDR++ kodu uygulamaya kopyalanmadı.
 - [librtlsdr API](https://github.com/osmocom/rtl-sdr/blob/master/include/rtl-sdr.h) ve [rtl_tcp protokolü](https://github.com/osmocom/rtl-sdr/blob/master/src/rtl_tcp.c).
 
 Üçüncü taraf bağımlılıkların sürüm ve dağıtım bilgileri `docs/THIRD_PARTY.md` içindedir.

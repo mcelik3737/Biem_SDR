@@ -40,6 +40,7 @@ class TetraBackend:
         self.recording_check: Callable[[], bool] | None = None
         self.cooldowns: dict[int, float] = {}
         self.last_voice = float("-inf")
+        self.audio_sink = None
         self.control_signature = None
         self.control_confirmations = 0
         exe = (project or archive.root.parent) / "vendor/tetra/TetraBridge.exe"
@@ -137,6 +138,9 @@ class TetraBackend:
             if len(pcm) != 960:
                 raise ValueError("TETRA PCM frame size changed.")
             self.last_voice = now
+            sink = getattr(self, "audio_sink", None)
+            if sink is not None:
+                sink(slot, np.frombuffer(pcm, "<i2") / 32768.0)
             if now >= self.cooldowns.get(slot, 0):
                 call = self.calls.setdefault(
                     slot, {"started": datetime.now(timezone.utc), "chunks": [], "last": now}

@@ -1,5 +1,6 @@
 import json
 import math
+import sqlite3
 import time
 import tkinter as tk
 from datetime import datetime, timezone
@@ -11,6 +12,8 @@ from PIL import Image, ImageTk
 from .locations import LocationReader
 from .map_detail import MapDetail
 from .satellite import SatelliteTiles, bounds
+from .vector_map import COS39, VECTOR_NAME, VectorMap, Viewport, find_package
+from .vector_worker import MapWorker
 
 
 def project(lon: float, lat: float) -> tuple[float, float]:
@@ -34,8 +37,25 @@ class MapPanel(ttk.Frame):
         )
         self.features = data["features"]
         self.detail_layer = MapDetail()
+        self.vector = None
+        self.vector_worker = None
+        self.vector_view = None
+        self.vector_ready = None
+        self.vector_photo = None
+        self.vector_stats = None
+        self.vector_error = ""
+        self.vector_after = None
+        package = find_package(archive.root)
+        if package:
+            try:
+                self.vector = VectorMap(package)
+                self.vector_worker = MapWorker(self.vector)
+            except (OSError, ValueError, KeyError, sqlite3.Error) as exc:
+                self.vector_error = f"Türkiye paketi açılamadı: {exc}"
         self.satellite = SatelliteTiles(archive.root / "map-import/googlemaps/googlemaps/satellite")
         self.tile_sets = {"Uydu (yerel paket)": self.satellite} if self.satellite.tiles else {}
+        self.tile_credits = {}
+        self.satellite_levels = set()
         for manifest in sorted((archive.root / "map-packs").glob("*/manifest.json")):
             try:
                 info = json.loads(manifest.read_text("utf-8"))
@@ -43,22 +63,31 @@ class MapPanel(ttk.Frame):
                     continue
                 tiles = SatelliteTiles(manifest.parent / "tiles")
                 if tiles.tiles:
-                    self.tile_sets[f"{info['name']} (paket)"] = tiles
+                    name = f"{info['name']} (paket)"
+                    self.tile_sets[name] = tiles
+                    self.tile_credits[name] = " • ".join(
+                        str(info[key])
+                        for key in ("description", "attribution", "license")
+                        if info.get(key)
+                    )
             except (OSError, ValueError, KeyError):
                 continue
         self.base_map = tk.StringVar(
-            master=self, value=next(reversed(self.tile_sets)) if self.tile_sets else "Standart"
+            master=self,
+            value=VECTOR_NAME if self.vector else next(reversed(self.tile_sets), "Standart"),
         )
-        if self.tile_sets:
+        if self.base_map.get() in self.tile_sets:
             self.satellite = self.tile_sets[self.base_map.get()]
         self.show_borders = tk.BooleanVar(master=self, value=True)
         self.show_cities = tk.BooleanVar(
             master=self, value=not self.base_map.get().endswith("(paket)")
         )
         self.show_grid = tk.BooleanVar(master=self, value=False)
+        ttk.Label(self, text="Harita · Telsiz konumu", font=("Segoe UI", 16, "bold")).pack(
+            anchor="w", pady=(0, 8)
+        )
         row = ttk.Frame(self)
         row.pack(fill="x", pady=(0, 10))
-        ttk.Label(row, text="TELSİZ KONUMU", font=("Segoe UI", 16, "bold")).pack(side="left")
         ttk.Button(row, text="Türkiye", command=self.reset).pack(side="right", padx=4)
         ttk.Button(row, text="Son telsize yaklaş", command=self.focus_radio).pack(
             side="right", padx=4
@@ -73,7 +102,7 @@ class MapPanel(ttk.Frame):
         self.summary = tk.StringVar(master=self, value="Konum mesajı bekleniyor")
         self.detail = tk.StringVar(master=self)
         ttk.Label(
-            self, textvariable=self.summary, font=("Segoe UI", 12, "bold"), foreground="#174b78"
+            self, textvariable=self.summary, font=("Segoe UI", 12, "bold"), style="Muted.TLabel"
         ).pack(anchor="w")
         ttk.Label(self, textvariable=self.detail, wraplength=1050).pack(anchor="w", pady=(4, 10))
         layers = ttk.Frame(self)
@@ -82,22 +111,33 @@ class MapPanel(ttk.Frame):
             layers,
             textvariable=self.base_map,
             state="readonly",
-            width=20,
-            values=["Standart", *self.tile_sets],
+            width=38,
+            values=["Standart", *([VECTOR_NAME] if self.vector else []), *self.tile_sets],
         )
         self.base_box.pack(side="left", padx=(0, 14))
         self.base_box.bind("<<ComboboxSelected>>", lambda event: self.render())
+        self.city_places = {p["name"]: p for p in self.detail_layer.places}
+        self.city_name = tk.StringVar(master=self, value="Şehre yaklaş…")
+        self.city_box = ttk.Combobox(
+            layers,
+            textvariable=self.city_name,
+            state="readonly",
+            width=16,
+            values=sorted(self.city_places),
+        )
+        self.city_box.pack(side="left", padx=(0, 14))
+        self.city_box.bind("<<ComboboxSelected>>", lambda event: self.focus_city())
+        toggles = ttk.Frame(self)
+        toggles.pack(fill="x", pady=(0, 8))
         for label, variable in [
             ("İl sınırları", self.show_borders),
             ("Şehir adları", self.show_cities),
             ("Koordinat ızgarası", self.show_grid),
         ]:
-            ttk.Checkbutton(layers, text=label, variable=variable, command=self.render).pack(
+            ttk.Checkbutton(toggles, text=label, variable=variable, command=self.render).pack(
                 side="left", padx=(0, 18)
             )
-        ttk.Label(layers, text="● Son alınan telsiz konumu", foreground="#a52649").pack(
-            side="right"
-        )
+        ttk.Label(toggles, text="● Son konum", style="Muted.TLabel").pack(side="right")
         self.canvas = tk.Canvas(
             self, background="#dceef5", highlightthickness=1, highlightbackground="#c5d6e2"
         )
@@ -112,17 +152,94 @@ class MapPanel(ttk.Frame):
         ttk.Label(
             self,
             textvariable=self.map_credit,
-            foreground="#526174",
+            style="Muted.TLabel",
+            wraplength=1150,
         ).pack(anchor="w", pady=(7, 0))
         self.update_credit()
         self.refresh_labels()
+        self.bind("<Destroy>", self.close_vector, add="+")
+        if self.vector_worker:
+            self.vector_after = self.after(80, self.poll_vector)
+
+    def close_vector(self, event):
+        if event.widget is not self:
+            return
+        if self.vector_worker:
+            self.vector_worker.close()
+        if self.vector_after:
+            self.after_cancel(self.vector_after)
+            self.vector_after = None
+
+    def poll_vector(self):
+        result = self.vector_worker.take_result() if self.vector_worker else None
+        if result:
+            view, rendered, error = result
+            if view == self.vector_view:
+                self.vector_error = error or ""
+                if rendered:
+                    picture, self.vector_stats = rendered
+                    self.vector_photo = ImageTk.PhotoImage(picture, master=self.canvas)
+                    self.vector_ready = view
+                self.render()
+        self.vector_after = self.after(80, self.poll_vector)
+
+    def focus_city(self):
+        place = self.city_places.get(self.city_name.get())
+        if place:
+            self.center = project(place["lon"], place["lat"])
+            self.zoom = 1
+            # Start at street scale; subsequent zoom is still controlled by the user.
+            self.zoom = min(8192, 256 * 2**14 / (360 * COS39) / self.scale())
+            self.render()
+
+    def draw_vector(self):
+        view = Viewport(
+            self.canvas.winfo_width(),
+            self.canvas.winfo_height(),
+            self.center,
+            self.scale(),
+            labels=self.show_cities.get(),
+            borders=self.show_borders.get(),
+        )
+        if view != self.vector_view and self.vector_worker:
+            self.vector_view = view
+            self.vector_error = ""
+            self.vector_worker.submit(view)
+        if self.vector_ready == view and self.vector_photo:
+            self.canvas.create_image(0, 0, anchor="nw", image=self.vector_photo, tags="vector-map")
+            return True
+        self.canvas.create_text(
+            16,
+            20,
+            anchor="w",
+            tags="map-loading",
+            fill="#174b78",
+            text=self.vector_error or "Çevrimdışı sokak ayrıntıları hazırlanıyor…",
+        )
+        return False
 
     def update_credit(self):
         selected = self.tile_sets.get(self.base_map.get())
-        if selected is not None:
+        if self.base_map.get() == VECTOR_NAME and self.vector:
+            credit = (
+                "Türkiye • © OpenStreetMap katkıcıları / Geofabrik • ODbL 1.0 • İnternet gerekmez"
+            )
+            credit += "\nVeri z0–14; daha yakın görünüm aynı veriyi büyütür. Ayrıntı OSM kapsamına bağlıdır."
+            if self.vector_stats and self.vector_ready == self.vector_view:
+                stats = self.vector_stats
+                credit += f" • Görünen karolar: {stats['loaded']}/{stats['requested']}"
+                if stats["loaded"] < stats["requested"]:
+                    credit += " • Bu görünümün bir bölümü paket dışında."
+            if self.vector_error:
+                credit += " • " + self.vector_error
+        elif selected is not None:
             self.satellite = selected
             levels = sorted(selected.by_level)
             credit = f"{self.base_map.get()} • {len(selected.tiles)} parça • z{levels[0]}–{levels[-1]} • Eksik ayrıntılarda alt seviye kullanılır."
+            if self.tile_credits.get(self.base_map.get()):
+                credit += "\n" + self.tile_credits[self.base_map.get()]
+            if self.satellite_levels:
+                credit += f" • Görünümdeki en yüksek ayrıntı: z{max(self.satellite_levels)}"
         else:
             credit = "Çevrimdışı standart harita • Natural Earth / Public Domain"
         self.map_credit.set(
@@ -130,6 +247,9 @@ class MapPanel(ttk.Frame):
         )
 
     def focus_pack(self):
+        if self.base_map.get() == VECTOR_NAME:
+            self.reset()
+            return
         tiles = self.tile_sets.get(self.base_map.get())
         if not tiles or not tiles.tiles:
             return
@@ -234,9 +354,14 @@ class MapPanel(ttk.Frame):
                         width=1,
                     )
         satellite = self.base_map.get() in self.tile_sets
+        vector = self.base_map.get() == VECTOR_NAME and self.vector is not None
+        vector_drawn = self.draw_vector() if vector else False
         if satellite:
-            self.satellite.render(self)
-        self.detail_layer.draw_land(self, satellite=satellite)
+            self.satellite_levels = self.satellite.render(self)
+        if not vector_drawn:
+            self.detail_layer.draw_land(self, satellite=satellite)
+        canvas.tag_raise("map-loading")
+        self.update_credit()
         if self.show_grid.get():
             for lon in range(24, 48, 2):
                 x, _ = self.screen(lon, 39)
@@ -260,7 +385,8 @@ class MapPanel(ttk.Frame):
                 canvas.create_text(
                     x, y, text=label, fill="#829b9b", font=("Segoe UI", 12, "italic")
                 )
-        self.detail_layer.draw_cities(self)
+        if not vector_drawn:
+            self.detail_layer.draw_cities(self)
         self.detail_layer.draw_scale(self)
         canvas.create_text(w - 26, 20, text="K", fill="#455c6c", font=("Segoe UI", 10, "bold"))
         canvas.create_line(w - 26, 54, w - 26, 32, arrow="last", fill="#455c6c", width=2)

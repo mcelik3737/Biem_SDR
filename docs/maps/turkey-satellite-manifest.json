@@ -1,0 +1,19 @@
+{
+  "format": "biem-xyz-v1",
+  "name": "Türkiye uydu • EOX 2016",
+  "tile_count": 33774,
+  "bytes": 529269100,
+  "source": "https://cloudless.eox.at/license-non-commercial",
+  "license": "CC BY 4.0",
+  "attribution": "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)",
+  "description": "Türkiye geneli z12; İstanbul, Ankara, İzmir, Konya, Van merkezlerinde z14. 2016–2017 uydu mozaiği; güncel görüntü değildir.",
+  "bbox": [
+    25.5,
+    35.7,
+    44.9,
+    42.2
+  ],
+  "country_maxzoom": 12,
+  "city_maxzoom": 14,
+  "network_required_for_viewing": false
+}

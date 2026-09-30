@@ -9,3 +9,8 @@ data/
 vendor/
 external/
 *.egg-info/
+*.mbtiles
+tools/offline-map/tiles/
+tools/offline-map/download-state.json
+tools/offline-map/manifest.json
+tools/offline-map/*.part

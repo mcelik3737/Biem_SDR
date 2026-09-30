@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import threading
 import time
 import tkinter as tk
 from contextlib import closing
@@ -53,6 +54,19 @@ class InboxStore:
                 id TEXT PRIMARY KEY, at_local TEXT, channel TEXT, protocol TEXT,
                 source_id TEXT, group_id TEXT, target_id TEXT, kind TEXT, text TEXT,
                 provenance TEXT)""")
+            db.execute("CREATE TABLE IF NOT EXISTS message_read (id TEXT PRIMARY KEY)")
+
+    def unread_counts(self):
+        with closing(sqlite3.connect(self.database)) as db:
+            return dict(
+                db.execute("""SELECT channel,count(*) FROM messages
+                WHERE kind NOT LIKE 'Ham veri%' AND id NOT IN (SELECT id FROM message_read)
+                GROUP BY channel""")
+            )
+
+    def mark_read(self, identity):
+        with closing(sqlite3.connect(self.database, autocommit=True)) as db:
+            db.execute("INSERT OR IGNORE INTO message_read VALUES (?)", (identity,))
 
     def add(self, event, provenance, identity):
         if not isinstance(event.get("text"), str):
@@ -127,6 +141,10 @@ class InboxPanel(ttk.Frame):
         super().__init__(parent, padding=14)
         self.store = InboxStore(root)
         self.last_poll = 0.0
+        self.worker = None
+        self.changed = False
+        self.poll_error = ""
+        self.unread = {}
         self.query = tk.StringVar()
         self.day = tk.StringVar()
         self.rows = {}
@@ -200,6 +218,12 @@ class InboxPanel(ttk.Frame):
     def select(self, event=None):
         selected = self.table.selection()
         row = self.rows.get(selected[0]) if selected else None
+        if row is not None:
+            try:
+                self.store.mark_read(row["id"])
+                self.unread = self.store.unread_counts()
+            except sqlite3.Error:
+                self.note.configure(text="Okundu bilgisi kaydedilemedi; tekrar seçin.")
         self.detail.configure(state="normal")
         self.detail.delete("1.0", "end")
         self.detail.insert(
@@ -211,8 +235,25 @@ class InboxPanel(ttk.Frame):
         self.detail.configure(state="disabled")
 
     def poll(self):
-        if time.monotonic() - self.last_poll < 1:
+        if self.worker is not None and self.worker.is_alive():
+            return
+        if self.changed:
+            self.changed = False
+            if self.winfo_ismapped():
+                self.refresh()
+        if self.poll_error:
+            self.note.configure(text=self.poll_error)
+        if time.monotonic() - self.last_poll < 2:
             return
         self.last_poll = time.monotonic()
-        if self.store.poll():
-            self.refresh()
+
+        def collect():
+            try:
+                self.changed = self.store.poll()
+                self.unread = self.store.unread_counts()
+                self.poll_error = ""
+            except (OSError, sqlite3.Error):
+                self.poll_error = "Mesaj günlüğü okunamadı; tekrar denenecek."
+
+        self.worker = threading.Thread(target=collect, daemon=True)
+        self.worker.start()

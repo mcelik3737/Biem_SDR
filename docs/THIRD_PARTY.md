@@ -58,3 +58,11 @@ Uygulama çalışma anında çevrimiçi harita servisi çağırmaz. Ülke ölçe
 ### Kullanıcının Google Maps uydu paketi
 `D:/turkey/googlemaps.zip` içindeki 10 adet 256×256 JPEG yerel `data/map-import/googlemaps/` altında tutulur; Git/paket dağıtımına dahil edilmez. Dosyalarda EXIF konumu bulunmadı; `z/x/y.jpg` yolları XYZ Web Mercator konumlandırması için kullanılır. Yerel dosyalar dışında Google tile indirmesi yapılmaz. Koordinat referansı: https://developers.google.com/maps/documentation/javascript/coordinates
 Pillow, JPG okuma ve mevcut enlem/boylam harita projeksiyonuna raster dönüşümü için eklendi.
+
+## 30 September 2026: offline maps and cleanup
+
+- Turkey Shortbread MBTiles: https://download.geofabrik.de/europe/turkey.html ; OpenStreetMap contributors / Geofabrik, ODbL 1.0 (https://opendatacommons.org/licenses/odbl/1-0/). Distributed as an optional, attributed data package outside Git.
+- EOxCloudless 2016 imagery: https://cloudless.eox.at/license-non-commercial ; the 2016 layer is CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), containing modified Copernicus Sentinel 2016 & 2017 data. Later imagery licenses are not assumed to match. Tiles retain provenance in manifest.json; attribution is displayed in the map interface.
+- MapLibre GL JS modules in tools/offline-map/assets are used by the optional standalone map viewer; see MAPLIBRE-LICENSE.txt. The native receiver map does not depend on that viewer.
+- mapbox-vector-tile / protobuf / pyclipper / shapely are pinned through uv.lock and used for native offline vector rendering.
+- Unused reference clones and old user-provided Google map packages were moved out of the active project. Their former presence described above is historical. Active SDR/decoder vendor files remain local, unchanged, and outside the repository.

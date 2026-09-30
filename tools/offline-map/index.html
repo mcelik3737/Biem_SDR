@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BİEM • Türkiye Çevrimdışı Harita</title>
+  <link rel="stylesheet" href="/assets/maplibre-gl.css"><link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header><div class="brand"><span class="mark">B</span><div><b>BİEM <span>HARİTA</span></b><small>Radio Integrated Solution · Harita hazırlama</small></div></div><div class="headActions"><span class="offline">● ÇEVRİMDIŞI</span><button id="theme">Koyu görünüm</button></div></header>
+  <main><aside>
+    <p class="eyebrow">YEREL HARİTA PAKETİ</p><h1>Türkiye</h1><p class="intro">Ülke görünümünden sokak ayrıntısına. Harita verileri bu bilgisayarda.</p>
+    <section class="package"><span class="dot"></span><div><strong id="packageState">Paket kontrol ediliyor</strong><small id="packageSize">Geofabrik / OpenStreetMap</small></div></section>
+    <label class="label" for="city">Bir şehre yaklaş</label><select id="city"><option value="">Şehir seçin…</option><option value="28.9784,41.0082">İstanbul</option><option value="32.8597,39.9334">Ankara</option><option value="27.1428,38.4237">İzmir</option><option value="32.4932,37.8746">Konya</option><option value="30.7133,36.8969">Antalya</option><option value="29.0610,40.1885">Bursa</option><option value="35.3213,37.0000">Adana</option><option value="37.3781,37.0662">Gaziantep</option><option value="40.2306,37.9144">Diyarbakır</option><option value="39.7200,41.0015">Trabzon</option><option value="41.2769,39.9043">Erzurum</option><option value="43.3720,38.5012">Van</option><option value="43.0975,40.6013">Kars</option><option value="26.5557,41.6771">Edirne</option></select>
+    <button id="turkey" class="primary">Türkiye'nin tamamını göster</button>
+    <div class="sectionTitle">Katmanlar <small id="zoom">Z —</small></div>
+    <label class="toggle"><span>Yollar ve demiryolları</span><input id="roads" type="checkbox" checked></label>
+    <label class="toggle"><span>Şehir ve sokak adları</span><input id="labels" type="checkbox" checked></label>
+    <label class="toggle"><span>Binalar</span><input id="buildings" type="checkbox" checked></label>
+    <label class="toggle"><span>İdari sınırlar</span><input id="boundaries" type="checkbox" checked></label>
+    <details><summary>Koordinata git</summary><form id="coordinates"><label>Enlem<input name="lat" type="number" step="any" min="34" max="44" placeholder="41.0082" required></label><label>Boylam<input name="lon" type="number" step="any" min="24" max="46" placeholder="28.9784" required></label><button type="submit">Konumu göster</button></form></details>
+    <p class="note">Yol haritası · Uydu görüntüsü içermez.<br>Ayrıntı, OpenStreetMap'teki mevcut verilere bağlıdır. Bu pencere SDR alımını kontrol etmez.</p>
+    <details><summary>Paket ayrıntıları</summary><pre id="packageDetails"></pre></details>
+  </aside><div class="mapWrap"><div id="map" aria-label="Türkiye çevrimdışı haritası"></div><div class="mapBadge"><span class="dot"></span><span>Yerel dosyadan görüntüleniyor</span></div><div id="message" role="status">Türkiye haritası hazırlanıyor…</div><div class="mapFooter"><span id="position">Haritaya dokunarak koordinat seçin</span><span>WGS84 · Web Mercator</span></div></div></main>
+  <script type="module" src="/app.js"></script>
+</body></html>

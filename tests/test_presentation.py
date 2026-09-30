@@ -68,6 +68,33 @@ def test_presentation_keeps_config_and_live_telemetry(tmp_path):
         assert not app.fm_panel.winfo_manager()
         assert config.read_text("utf-8") == original
         assert not app.receiver.running and not app.radio.running
+        app.presentation.toggle_theme()
+        assert json.loads((directory / "console-ui.json").read_text("utf-8"))["dark"]
+        assert config.read_text("utf-8") == original
+        app.presentation.toggle_theme()
+        root.deiconify()
+        root.state("normal")
+        root.geometry("800x480")
+        app.presentation.show_all.set(True)
+        for c in app.cards:
+            c.enabled.set(True)
+        for _ in range(5):
+            root.update()
+        for v in app.presentation.cards:
+            assert v.speaker.winfo_height() >= 38
+            assert v.meter.winfo_height() >= 38
+            assert v.button.winfo_ismapped()
+            assert v.speaker.winfo_y() + v.speaker.winfo_height() <= v.actions.winfo_height()
+            assert v.actions.winfo_y() + v.actions.winfo_height() <= v.summary.winfo_height()
+            assert v.message.winfo_ismapped()
+            assert (
+                v.card.frame.winfo_x() + v.card.frame.winfo_width()
+                <= app.card_grid.winfo_width() + 2
+            )
+        app.presentation.settings()
+        root.update()
+        assert app.presentation.settings_window.winfo_exists()
+        app.presentation.settings_window.destroy()
     finally:
         for token in root.tk.splitlist(root.tk.call("after", "info")):
             root.after_cancel(token)

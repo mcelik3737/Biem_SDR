@@ -12,6 +12,7 @@ from pathlib import Path
 from .auto_decode import AutoChannel
 from .dmr import DmrBackend, DmrDiscriminator
 from .dsp import FMDemodulator
+from .live_audio import LiveAudio
 from .models import SAMPLE_RATE, Channel, center_for
 from .recorder import CallRecorder
 from .scanner import AutoScanGate, DmrScanGate, ScanGate, TetraScanGate
@@ -30,6 +31,7 @@ class Receiver:
         self.usb_index = 0
         self.thread: threading.Thread | None = None
         self.messages: queue.Queue[dict] = queue.Queue(maxsize=200)
+        self.monitor = LiveAudio()
 
     @property
     def running(self) -> bool:
@@ -74,6 +76,7 @@ class Receiver:
         if source_kind not in ("USB", "rtl_tcp"):
             raise ValueError("Geçersiz kaynak.")
         self.stop_event.clear()
+        self.monitor.clear()
         self.usb_settings = (usb_gain, usb_agc)
         self.usb_index = usb_index
         self.thread = threading.Thread(
@@ -87,6 +90,14 @@ class Receiver:
 
     def stop(self):
         self.stop_event.set()
+        self.monitor.stop()
+
+    def _read_source(self, source):
+        try:
+            return source.read()
+        except (OSError, RuntimeError):
+            self.publish("connection", connected=False)
+            raise
 
     def _scan(self, channels, dll, source_kind, host, port, ppm, dwell, usb_gain, release):
         index = 0
@@ -140,18 +151,23 @@ class Receiver:
                         DmrBackend(self.archive, channel, self.archive.root.parent),
                     )
             applied_settings = self.usb_settings
-            source = (
-                USBSource(
-                    dll,
-                    center,
-                    index=self.usb_index,
-                    ppm=ppm,
-                    gain_db=applied_settings[0],
-                    agc=applied_settings[1],
+            try:
+                source = (
+                    USBSource(
+                        dll,
+                        center,
+                        index=self.usb_index,
+                        ppm=ppm,
+                        gain_db=applied_settings[0],
+                        agc=applied_settings[1],
+                    )
+                    if source_kind == "USB"
+                    else TCPSource(host, port, center, ppm)
                 )
-                if source_kind == "USB"
-                else TCPSource(host, port, center, ppm)
-            )
+            except (OSError, RuntimeError):
+                self.publish("connection", connected=False)
+                raise
+            self.publish("connection", connected=True)
             # Discard tuner startup transients before starting any recording.
             if isinstance(source, USBSource) and hasattr(source, "gain_db"):
                 self.publish(
@@ -162,7 +178,7 @@ class Receiver:
                 )
             discarded = 0
             while discarded < SAMPLE_RATE // 4 and not self.stop_event.is_set():
-                discarded += len(source.read())
+                discarded += len(self._read_source(source))
             epoch = datetime.now(timezone.utc)
             for auto_channel in automatic:
                 if auto_channel.recorder is not None:
@@ -181,13 +197,24 @@ class Receiver:
                 else "ALIM HAZIR • " + ", ".join(dict.fromkeys(c.mode for c in channels)),
             )
             last_update = 0.0
+            for backend_tetra in tetra:
+                backend_tetra.audio_sink = lambda slot, audio, name=backend_tetra.channel.name: (
+                    self.monitor.feed(name, f"tetra-{slot}", audio, 8000, f"TETRA slot {slot}")
+                )
+            for auto_channel in automatic:
+                auto_channel.monitor = self.monitor
+                auto_tetra = getattr(auto_channel, "tetra", None)
+                if auto_tetra is not None:
+                    auto_tetra.audio_sink = lambda slot, audio, name=auto_channel.channel.name: (
+                        self.monitor.feed(name, f"tetra-{slot}", audio, 8000, f"TETRA slot {slot}")
+                    )
             peaks = PeakMonitor(channels, center)
             followers = {c.name: SignalFollower(c, channels) for c in channels}
             while not self.stop_event.is_set():
                 if isinstance(source, USBSource) and applied_settings != self.usb_settings:
                     applied_settings = self.usb_settings
                     self.publish("gain", text=source.set_gain(*applied_settings))
-                iq = source.read()
+                iq = self._read_source(source)
                 peaks.feed(iq)
                 update_due = time.monotonic() - last_update >= 0.2
                 measurements = {}
@@ -216,6 +243,10 @@ class Receiver:
                 for name, (discriminator, backend) in digital.items():
                     pcm, level = discriminator.process(channel_iq[name])
                     backend.feed(pcm)
+                    for stream, samples, rate in getattr(backend, "audio_packets", []):
+                        self.monitor.feed(
+                            name, stream, samples, rate, "Çözücü ses akışı · slot doğrulanmadı"
+                        )
                     states.append(
                         {
                             "name": name,
@@ -232,6 +263,10 @@ class Receiver:
                     recorder.feed(
                         audio if demod.tone.open else audio * 0, level if demod.tone.open else -120
                     )
+                    if demod.tone.open and level >= recorder.channel.squelch_db:
+                        self.monitor.feed(
+                            recorder.channel.name, "analog", audio, 16000, "Analog ses"
+                        )
                     states.append(
                         {
                             "name": recorder.channel.name,
@@ -244,6 +279,7 @@ class Receiver:
                     )
                 if update_due:
                     for state in states:
+                        state.update(self.monitor.state(state["name"]))
                         state.update(measurements[state["name"]])
                         state.update(followers[state["name"]].telemetry())
                     self.publish("levels", channels=states)

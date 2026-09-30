@@ -1,0 +1,16 @@
+[
+  {
+    "path": "data\\staging",
+    "files": 49867,
+    "bytes": 1977020630.0,
+    "action": "moved-to-development-history",
+    "note": "Directory renamed within same drive; nested junctions are preserved, not copied or recursively deleted"
+  },
+  {
+    "path": "data\\backups",
+    "files": 62,
+    "bytes": 1799530.0,
+    "action": "moved-to-development-history",
+    "note": "Directory renamed within same drive; nested junctions are preserved, not copied or recursively deleted"
+  }
+]
