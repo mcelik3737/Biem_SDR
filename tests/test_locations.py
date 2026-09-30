@@ -89,6 +89,30 @@ def test_map_radio_projection_and_zoom(tmp_path):
         x, y = panel.screen(32.8, 39.9)
         assert 0 < x < panel.canvas.winfo_width() and 0 < y < panel.canvas.winfo_height()
         assert panel.canvas.find_withtag("radio")
+        # Identity does not provide a location; an explicitly decoded GNSS fix does.
+        identity = {"alias": "Test rölesi", "radio_id": 3700}
+        panel.set_repeater(identity)
+        assert not panel.canvas.find_withtag("repeater")
+        assert "henüz alınmadı" in panel.repeater_text.get()
+        fix = {
+            "latitude": 39.9,
+            "longitude": 32.8,
+            "observed_utc": datetime.now(timezone.utc).isoformat(),
+            "fix_valid": True,
+            "basis": "Hytera SNMP GNSS",
+        }
+        panel.set_repeater(identity, {**fix, "latitude": float("nan")})
+        assert not panel.canvas.find_withtag("repeater")
+        panel.set_repeater(identity, {**fix, "fix_valid": False})
+        assert not panel.canvas.find_withtag("repeater")
+        panel.set_repeater(identity, fix)
+        assert panel.canvas.find_withtag("repeater")
+        assert panel.canvas.find_withtag("radio")  # distinct symbols coexist
+        panel.focus_repeater()
+        rx, ry = panel.screen(32.8, 39.9)
+        assert rx == panel.canvas.winfo_width() / 2
+        assert ry == panel.canvas.winfo_height() / 2
+        panel.reset()
         initial_height = panel.radio_size
         assert panel.canvas.find_withtag("radio-photo")
         panel.focus_radio()

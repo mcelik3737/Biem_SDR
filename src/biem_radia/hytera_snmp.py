@@ -19,10 +19,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .hytera_metrics import METRIC_OIDS, METRICS, decode_measurement
+from .hytera_metrics import DATA_BASE, METRIC_OIDS, METRICS, decode_measurement
 
 UPTIME = "1.3.6.1.2.1.1.3.0"
 ALARM_BASE = "1.3.6.1.4.1.40297.1.2.1.1."
+RADIO_ALIAS = "1.3.6.1.4.1.40297.1.2.4.6.0"
+RADIO_ID = "1.3.6.1.4.1.40297.1.2.4.7.0"
 ALARMS = {
     1: ("Besleme gerilimi", {0: "Normal", 1: "Düşük", 2: "Yüksek", 3: "Anormal"}),
     2: ("Sıcaklık", {0: "Normal", 1: "Düşük", 2: "Yüksek"}),
@@ -35,7 +37,20 @@ ALARMS = {
     9: ("Batarya gerilimi", {0: "Normal", 1: "Anormal"}),
 }
 # One object per GET: an unsupported optional OID must not hide other alarms.
-POLL_OIDS = [UPTIME] + [f"{ALARM_BASE}{n}.0" for n in ALARMS] + list(METRIC_OIDS)
+POLL_OIDS = (
+    [UPTIME, RADIO_ALIAS, RADIO_ID] + [f"{ALARM_BASE}{n}.0" for n in ALARMS] + list(METRIC_OIDS)
+)
+
+
+def radio_alias(tag: int, raw: int | str | None) -> str | None:
+    """The MIB's Unicode string; UTF-16LE verified on this HR659."""
+    if tag != 4 or not isinstance(raw, str) or not raw.startswith("hex:"):
+        return None
+    try:
+        value = bytes.fromhex(raw[4:]).decode("utf-16-le").rstrip("\0").strip()
+    except (ValueError, UnicodeError):
+        return None
+    return value if value and len(value) <= 64 and all(c.isprintable() for c in value) else None
 
 
 def _tlv(data: bytes, at: int = 0) -> tuple[int, bytes, int]:
@@ -191,6 +206,10 @@ class SnmpMonitor:
         self.lock = threading.Lock()
         self.error = ""
         self.unsupported: set[str] = set()
+        self.rssi_requested = threading.Event()
+        self.rssi_token = 0
+        self.rssi_results: dict[int, dict] = {}
+        self.identity: dict = {}
 
     @property
     def running(self):
@@ -208,6 +227,9 @@ class SnmpMonitor:
         self.alarms.clear()
         self.measurements.clear()
         self.unsupported.clear()
+        self.rssi_requested.clear()
+        self.rssi_results.clear()
+        self.identity.clear()
         self.error = ""
         self.cancel.clear()
         self.thread = threading.Thread(target=self._run, args=(local, remote), daemon=True)
@@ -215,6 +237,33 @@ class SnmpMonitor:
 
     def stop(self):
         self.cancel.set()
+
+    def request_rssi(self) -> bool:
+        """Queue a fresh two-slot GET, never reuse a cached/unsolicited response."""
+        with self.lock:
+            if (
+                not self.running
+                or self.cancel.is_set()
+                or any(item["status"] == "pending" for item in self.rssi_results.values())
+            ):
+                return False
+            self.rssi_token += 1
+            self.rssi_results = {
+                slot: {"status": "pending", "text": "Okunuyor…", "at": time.monotonic()}
+                for slot in (1, 2)
+            }
+            self.rssi_requested.set()
+        return True
+
+    def finish_rssi(self, token: int, oid: str, text: str, status: str):
+        slot = METRIC_OIDS.get(oid, 0) - 8
+        with self.lock:
+            if token != self.rssi_token or slot not in self.rssi_results:
+                return
+            if self.rssi_results[slot]["status"] != "pending":
+                return
+            self.rssi_results[slot] = {"status": status, "text": text, "at": time.monotonic()}
+        self.event(f"RSSI oku • Slot {slot}: {text}", category="RSSI okuma")
 
     def snapshot(self):
         with self.lock:
@@ -237,6 +286,8 @@ class SnmpMonitor:
                 ),
                 "fields": dict(self.alarms),
                 "measurements": {n: dict(record) for n, record in self.measurements.items()},
+                "rssi_read": {n: dict(record) for n, record in self.rssi_results.items()},
+                "identity": dict(self.identity),
                 "normal": normal,
                 "unknown": unknown,
                 "waiting": self.running and self.started is not None and now - self.started < 35,
@@ -275,6 +326,15 @@ class SnmpMonitor:
             self.last_seen = now
             if not message.error:
                 for oid, tag, value in message.values:
+                    if oid == RADIO_ALIAS:
+                        alias = radio_alias(tag, value)
+                        if alias:
+                            self.identity.update(alias=alias, alias_at=now)
+                        continue
+                    if oid == RADIO_ID:
+                        if tag == 2 and isinstance(value, int) and 0 < value <= 0xFFFFFF:
+                            self.identity.update(radio_id=value, id_at=now)
+                        continue
                     if oid in METRIC_OIDS:
                         n = METRIC_OIDS[oid]
                         reading = decode_measurement(n, tag, value)
@@ -320,7 +380,7 @@ class SnmpMonitor:
 
     def _run(self, local: str, remote: str):
         sockets = []
-        waiting: dict[int, tuple[str, float]] = {}
+        waiting: dict[int, tuple[str, float, int | None]] = {}
         next_query, next_log = 0.0, 0.0
         last_link = None
         sequence = secrets.randbelow(0x3FFFFFFF)
@@ -343,14 +403,28 @@ class SnmpMonitor:
             self.event("SNMP durum izleme başladı • GET UDP 161 / Trap UDP 162")
             while not self.cancel.is_set():
                 now = time.monotonic()
+                for request_id, (oid, sent_at, token) in list(waiting.items()):
+                    if now - sent_at >= 3:
+                        del waiting[request_id]
+                        if token is not None:
+                            self.finish_rssi(token, oid, "Yanıt yok", "timeout")
+                if self.rssi_requested.is_set():
+                    self.rssi_requested.clear()
+                    self.event(
+                        "İki slot için yeni RSSI sorgusu gönderiliyor", category="RSSI okuma"
+                    )
+                    for number in (9, 10):
+                        sequence = (sequence + 1) & 0x7FFFFFFF
+                        oid = f"{DATA_BASE}{number}.0"
+                        request_socket.sendto(get_request(sequence, oid), (remote, 161))
+                        waiting[sequence] = oid, now, self.rssi_token
                 if now >= next_query:
-                    waiting = {key: item for key, item in waiting.items() if now - item[1] < 3}
                     for oid in POLL_OIDS:
                         if oid in self.unsupported and oid != UPTIME:
                             continue
                         sequence = (sequence + 1) & 0x7FFFFFFF
                         request_socket.sendto(get_request(sequence, oid), (remote, 161))
-                        waiting[sequence] = oid, now
+                        waiting[sequence] = oid, now, None
                     next_query = now + 10
                 ready, _, _ = select.select(sockets, [], [], 0.2)
                 for sock in ready:
@@ -366,7 +440,7 @@ class SnmpMonitor:
                         continue
                     if sock is request_socket:
                         pending = (
-                            waiting.pop(message.request_id, None)
+                            waiting.get(message.request_id)
                             if message.request_id is not None
                             else None
                         )
@@ -374,7 +448,7 @@ class SnmpMonitor:
                             message.kind != "response"
                             or sender[1] != 161
                             or pending is None
-                            or now - pending[1] > 3
+                            or time.monotonic() - pending[1] >= 3
                         ):
                             continue
                         if message.error:
@@ -387,6 +461,20 @@ class SnmpMonitor:
                             oid != pending[0] for oid, _, _ in message.values
                         ):
                             continue
+                        if message.request_id is not None:
+                            waiting.pop(message.request_id, None)
+                        if pending[2] is not None:
+                            reading = (
+                                decode_measurement(METRIC_OIDS[pending[0]], *message.values[0][1:])
+                                if not message.error
+                                else None
+                            )
+                            self.finish_rssi(
+                                pending[2],
+                                pending[0],
+                                reading.text if reading else f"SNMP hata {message.error}",
+                                "ok" if reading else "error",
+                            )
                     elif message.kind != "trap":
                         continue
                     self.observe(message)
@@ -421,6 +509,10 @@ class SnmpMonitor:
             except OSError:
                 pass
         finally:
+            for slot in (1, 2):
+                self.finish_rssi(
+                    self.rssi_token, f"{DATA_BASE}{slot + 8}.0", "Okuma durduruldu", "stopped"
+                )
             for sock in sockets:
                 sock.close()
 

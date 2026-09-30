@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+from .hytera_dashboard import HyteraDashboard
 from .hytera_metrics import ALARM_METRICS, METRICS, measurement_cell
 from .hytera_receiver import HyteraReceiver
 from .hytera_snmp import ALARM_BASE, ALARMS, SnmpMonitor, repeater_badge
@@ -60,11 +61,28 @@ class RepeaterSettingsPanel(ttk.Frame):
                 self.snmp_pending = self.snmp_enabled.get()
             except (ValueError, OSError) as exc:
                 self.status.set(f"Ayarlar okunamadı: {exc}")
-        ttk.Label(self, text="HYTERA RÖLE / ETHERNET", font=("Segoe UI", 16, "bold")).pack(
+        ttk.Label(self, text="Hytera • Röle izleme", font=("Segoe UI", 16, "bold")).pack(
             anchor="w", pady=(0, 12)
         )
         ttk.Label(self, textvariable=self.status, foreground="#246293").pack(anchor="w")
-        health = ttk.Frame(self)
+        # Keep all controls reachable on small touch displays.
+        viewport = ttk.Frame(self)
+        viewport.pack(fill="both", expand=True, pady=(8, 0))
+        self.page_canvas = tk.Canvas(viewport, highlightthickness=0)
+        scroll = ttk.Scrollbar(viewport, command=self.page_canvas.yview)
+        self.page_canvas.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.page_canvas.pack(side="left", fill="both", expand=True)
+        content = ttk.Frame(self.page_canvas)
+        window = self.page_canvas.create_window(0, 0, anchor="nw", window=content)
+        content.bind(
+            "<Configure>",
+            lambda event: self.page_canvas.configure(scrollregion=self.page_canvas.bbox("all")),
+        )
+        self.page_canvas.bind(
+            "<Configure>", lambda event: self.page_canvas.itemconfigure(window, width=event.width)
+        )
+        health = ttk.Frame(content)
         health.pack(fill="x", pady=(10, 0))
         ttk.Checkbutton(
             health,
@@ -75,12 +93,21 @@ class RepeaterSettingsPanel(ttk.Frame):
         ttk.Button(health, text="Durum ve olay günlüğü", command=self.show_health).pack(
             side="left", padx=12
         )
-        ttk.Label(self, textvariable=self.health_text, wraplength=850).pack(anchor="w", pady=(6, 0))
-        ttk.Label(
-            self, textvariable=self.measurement_text, font=("Segoe UI", 12, "bold"), wraplength=850
-        ).pack(anchor="w", pady=(6, 0))
-        form = ttk.Frame(self)
-        form.pack(anchor="w", pady=18)
+        ttk.Label(content, textvariable=self.health_text, wraplength=850).pack(
+            anchor="w", pady=(6, 0)
+        )
+        self.dashboard = HyteraDashboard(content, self.read_rssi)
+        self.dashboard.pack(fill="x")
+        ttk.Label(content, textvariable=self.measurement_text, wraplength=850).pack(
+            anchor="w", pady=(6, 0)
+        )
+        settings_toggle = ttk.Button(
+            content, text="⚙ Bağlantı ayarları", command=self.toggle_settings
+        )
+        settings_toggle.pack(anchor="w", pady=(12, 0))
+        self.settings_container = ttk.Frame(content)
+        self.settings_container.pack(fill="x")
+        form = self.settings_form = ttk.Frame(self.settings_container)
         labels = {
             "model": "Röle modeli",
             "firmware": "Firmware sürümü (cihazda doğrulanacak)",
@@ -99,16 +126,20 @@ class RepeaterSettingsPanel(ttk.Frame):
             ttk.Entry(form, textvariable=self.fields[key], width=28).grid(
                 row=row + 1, column=column, sticky="w", padx=(0, 32), pady=(0, 6)
             )
-        buttons = ttk.Frame(self)
+        ttk.Button(form, text="Ayarları kaydet", command=self.save).grid(
+            row=8, column=0, sticky="w", pady=8
+        )
+        if not self.fields["repeater_ip"].get():
+            form.pack(anchor="w", pady=12)
+        buttons = ttk.Frame(content)
         buttons.pack(anchor="w")
-        ttk.Button(buttons, text="Ayarları kaydet", command=self.save).pack(side="left")
         self.connect_button = ttk.Button(buttons, text="▶ Röleye bağlan", command=self.connect)
         self.connect_button.pack(side="left", padx=8)
         ttk.Button(buttons, text="■ Bağlantıyı kes", command=self.stop).pack(side="left")
         ttk.Button(buttons, text="Sesi kapat", command=self.receiver.monitor.stop).pack(
             side="left", padx=8
         )
-        cards = ttk.Frame(self)
+        cards = ttk.Frame(content)
         cards.pack(fill="x", pady=14)
         self.slot_labels, self.meters, self.packet_labels = {}, {}, {}
         for slot in (1, 2):
@@ -124,7 +155,7 @@ class RepeaterSettingsPanel(ttk.Frame):
                 card, text=f"♫ Slot {slot} canlı dinle", command=lambda n=slot: self.listen(n)
             ).pack(anchor="w")
         ttk.Label(
-            self,
+            content,
             text="Rölede Forward to PC açık olmalı; Third Party Server IP bu bilgisayarın adresi olmalı. "
             "Bağlanınca iki slotun konuşmaları ayrı ve korumalı kaydedilir. 90 sn kayıt / 2 sn ara.\n"
             "Bu bağlantı RF gönderimi yapmaz. CC, RF frekansı ve anten gücü bu paketlerde bulunmadığından "
@@ -132,6 +163,16 @@ class RepeaterSettingsPanel(ttk.Frame):
             wraplength=850,
             foreground="#526174",
         ).pack(anchor="w", pady=20)
+
+    def toggle_settings(self):
+        if self.settings_form.winfo_manager():
+            self.settings_form.pack_forget()
+        else:
+            self.settings_form.pack(anchor="w", pady=12)
+
+    def read_rssi(self):
+        self.snmp.request_rssi()
+        self.poll_health()
 
     def save(self) -> bool:
         if self.receiver.running:
@@ -245,6 +286,8 @@ class RepeaterSettingsPanel(ttk.Frame):
             except ValueError as exc:
                 self.snmp.error = str(exc)
         state = self.snmp.snapshot()
+        self.page_canvas.configure(background=ttk.Style(self).lookup("TFrame", "background"))
+        self.dashboard.update_state(state)
         label, _ = self.badge()
         age = "Henüz yanıt yok" if state["age"] is None else f"Son yanıt {state['age']:.0f} sn önce"
         normal = state["normal"] if state["fresh"] else 0
@@ -252,7 +295,8 @@ class RepeaterSettingsPanel(ttk.Frame):
             " • ".join(state["active"]) or f"Normal alan: {normal}/9 • Diğer alanlar doğrulanmadı"
         )
         self.health_text.set(
-            f"{label} • {age}\n{detail}" + (f" • {state['error']}" if state["error"] else "")
+            f"{state['identity'].get('alias', 'Röle')} • {label} • {age}\n{detail}"
+            + (f" • {state['error']}" if state["error"] else "")
         )
         now = time.monotonic()
         measures = state["measurements"]

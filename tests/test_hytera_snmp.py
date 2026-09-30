@@ -3,9 +3,12 @@ import threading
 
 import pytest
 
+from biem_radia.hytera_metrics import DATA_BASE
 from biem_radia.hytera_snmp import (
     ALARM_BASE,
     POLL_OIDS,
+    RADIO_ALIAS,
+    RADIO_ID,
     UPTIME,
     SnmpMessage,
     SnmpMonitor,
@@ -166,3 +169,97 @@ def test_socket_filtering_read_only_and_release(tmp_path, monkeypatch):
     assert all(_fields(_tlv(data)[1])[2][0] == 0xA0 for data, _ in sent)
     assert all(s.closed for s in sockets)
     assert len(monitor.alarms) == 9 and not monitor.snapshot()["active"]
+
+
+@pytest.mark.parametrize("answer", ["valid", "timeout", "error", "stopped"])
+def test_manual_rssi_is_fresh_correlated_and_get_only(tmp_path, monkeypatch, answer):
+    monitor = SnmpMonitor(tmp_path)
+    monitor.thread = threading.current_thread()
+    clock = [100.0]
+    monkeypatch.setattr("biem_radia.hytera_snmp.time.monotonic", lambda: clock[0])
+    monitor.observe(SnmpMessage("trap", None, 0, "", ((DATA_BASE + "9.0", 2, -47),)))
+    assert monitor.request_rssi()
+    assert not monitor.request_rssi()  # double taps don't launch overlapping requests
+    assert monitor.snapshot()["rssi_read"][1]["text"] == "Okunuyor…"
+    sockets, sent = [], []
+
+    class FakeSocket:
+        def __init__(self, *args):
+            self.incoming = []
+            self.closed = False
+            sockets.append(self)
+
+        def bind(self, address):
+            pass
+
+        def setsockopt(self, *args):
+            pass
+
+        def sendto(self, data, address):
+            sent.append(data)
+            if len(sent) <= 2:  # the explicit read is sent before periodic polling
+                if answer == "valid":
+                    valid = response(
+                        data, b"\x02\x01\xae" if len(sent) == 1 else b"\x02\x02\xff\x38"
+                    )
+                    self.incoming.extend(
+                        [
+                            (valid, ("192.168.1.99", 161)),
+                            (valid, ("192.168.1.98", 50000)),
+                            (valid, ("192.168.1.98", 161)),
+                        ]
+                    )
+                elif answer == "error":
+                    self.incoming.append((response(data, error=2), ("192.168.1.98", 161)))
+                # Valid but unrelated periodic replies below must not complete this read.
+            else:
+                self.incoming.append((response(data), ("192.168.1.98", 161)))
+
+        def recvfrom(self, size):
+            return self.incoming.pop(0)
+
+        def close(self):
+            self.closed = True
+
+    def ready(read, *args):
+        pending = [s for s in read if s.incoming]
+        if not pending:
+            if answer == "timeout" and clock[0] < 104:
+                clock[0] = 104
+            else:
+                monitor.cancel.set()
+        return pending, [], []
+
+    monkeypatch.setattr("biem_radia.hytera_snmp.socket.socket", FakeSocket)
+    monkeypatch.setattr("biem_radia.hytera_snmp.select.select", ready)
+    monitor._run("192.168.1.118", "192.168.1.98")
+    state = monitor.snapshot()["rssi_read"]
+    if answer == "valid":
+        assert state[1]["text"] == "-82 dB"
+        assert "ölçüm yok" in state[2]["text"]
+    else:
+        assert state[1]["status"] == answer
+        assert "-47" not in state[1]["text"]
+    assert len(sent) == len(POLL_OIDS) + 2
+    assert all(_fields(_tlv(data)[1])[2][0] == 0xA0 for data in sent)
+    assert all(s.closed for s in sockets)
+    assert not monitor.request_rssi()  # stop requested, even before the worker exits
+
+
+def test_snmp_identity_comes_from_device(tmp_path):
+    monitor = SnmpMonitor(tmp_path)
+    monitor.observe(
+        SnmpMessage(
+            "response",
+            1,
+            0,
+            "",
+            (
+                (RADIO_ALIAS, 4, "hex:" + "My Radio\0".encode("utf-16-le").hex()),
+                (RADIO_ID, 2, 3700),
+            ),
+        )
+    )
+    assert monitor.snapshot()["identity"]["alias"] == "My Radio"
+    assert monitor.snapshot()["identity"]["radio_id"] == 3700
+    assert "latitude" not in monitor.snapshot()["identity"]

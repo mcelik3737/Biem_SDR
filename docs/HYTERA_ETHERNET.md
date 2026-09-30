@@ -6,7 +6,7 @@ RF kazanç/PPM ayarlarına dokunmaz. Bu bir IPSC master veya RF verici değildir
 
 ## Kullanım
 
-1. **Hytera Ethernet** sayfasında rölenin IPv4 adresini ve bilgisayarın o ağdaki
+1. **Hytera Ethernet → Bağlantı ayarları** bölümünde rölenin IPv4 adresini ve bilgisayarın o ağdaki
    IPv4 adresini girin. Bilgisayar adresi CPS içindeki **Third Party Server IP**
    ile aynı olmalı. CPS'te **Forward to PC** açık, **Defined Mode** seçili olmalı.
 2. Bu HR659 testinde doğrulanan UDP portları:
@@ -178,8 +178,8 @@ biçimi LibreNMS'nin Hytera sensör uygulamasıyla kontrol edildi; standart Pyth
 edilmez. Bozuk uzunluk/tip, NaN, sonsuz ve anlamsız değerler sayı olarak gösterilmez.
 Sıcaklıkta 0 ve -1 °C geçerli olabilir; gerilim için kullanılan boş-değer kuralı
 sıcaklığa uygulanmaz. MIB'nin RSSI birimi dB'dir; dBm ya da SDR anten ölçümü olarak
-yeniden etiketlenmez. Fan devri ve ileri/yansıyan güç birimi/ölçeği doğrulanmadığı
-için bunlara rpm/W sayısı yazılmaz; gelen ham veri mevcut günlükte korunur.
+yeniden etiketlenmez. Fan devri doğrulanmadığı için rpm yazılmaz. İleri/yansıyan
+güç için sonraki RDAC skala çalışması aşağıda açıklanmıştır.
 
 Her ölçümün kendi son alınma zamanı tutulur. Başka bir Trap gelmesi eski voltajı
 güncel yapmaz. 35 saniyeyi aşan veya izleme kapalıyken görülen sayılar eski veri
@@ -198,3 +198,49 @@ Ek teknik kaynaklar:
 - [LibreNMS Hytera voltaj sensörü](https://github.com/librenms/librenms/blob/master/includes/discovery/sensors/voltage/hytera.inc.php).
 - [LibreNMS Hytera sıcaklık sensörü](https://github.com/librenms/librenms/blob/master/includes/discovery/sensors/temperature/hytera.inc.php).
 - [LibreNMS Hytera float dönüşüm tanımı](https://github.com/librenms/librenms/blob/master/includes/functions.php).
+
+## Görsel skalalar ve RSSI oku — 30 Eylül 2026
+
+Hytera sayfasında beş skala bulunur: besleme 0–30 V, sıcaklık 0–100 °C,
+VSWR 1:1–6:1, ileri güç 0–70 W ve yansıyan güç 0–15 W. Bu aralıklar kullanıcının
+RDAC örneğindeki gösterim aralıklarıdır; alarm eşikleri değildir. Aralık dışındaki
+sayının metni korunur, çubuk sınıra dayanır ve `Skala dışında` yazılır.
+Alarm rengi bağımsız üretici alarmından gelir. Alıcı ve verici PLL alanları
+MIB'deki **normal/kilit hatası alarmını** gösterir; RDAC'ın 0/1 kilit durumu ile
+karıştırılmaz. Karanlık/aydınlık tema, dar ekranlarda satır düzeni ve sayfa
+kaydırması desteklenir. Bağlantı ayarları açılır bölümde, ses kontrolleri aynı sayfadadır.
+
+RDAC ekranının W birimi ve mevcut float kodlamasıyla ölçüm `5.0` / `6.0` alanları
+eklendi. Sıfır W geçerli boşta ölçüm; -1 ölçüm yoktur. Gerçek cihazda yalnızca
+0 W örneği doğrulandı; sıfırdan büyük RF gücü harici ölçümle karşılaştırılmadı.
+
+**RSSI oku** düğmesi, açık SNMP servisinde iki slot için hemen yeni GET gönderir.
+Sonuç yalnızca o isteğin IP/port/istek numarası/OID eşleşen yanıtından gelir.
+Eski önbellek veya otomatik sorgu cevabı elle okumayı tamamlayamaz. Her slot
+bağımsız yanıtlanır; 3 saniyede yanıt gelmezse `Yanıt yok`, servis durursa
+`Okuma durduruldu`, -200 gelirse `Ölçüm yok` gösterilir. Okuma sırasında düğme
+kilitlidir. Son elle okuma zamanı görünür; yeni sorguya kadar bu sonuç korunur.
+Olaylar yerel tarihli SNMP günlüğüne yazılır. Bu düğme SET veya RF komutu göndermez.
+
+Gerçek HR659 GET ve uygulama düğmesiyle iki-slot sorgu testi yapıldı; boşta
+iki slot -200 verdi. Daha önceki gerçek Trap günlüklerinde negatif aktif RSSI
+örnekleri var; bu sürümün aktif konuşma sırasında düğme testi kullanıcı kabulünü bekliyor.
+
+## Röle adı ve GNSS harita hazırlığı
+
+`rptRadioAlias` (`...1.2.4.6.0`, cihazda doğrulanan UTF-16LE) ve `rptRadioID`
+(`...1.2.4.7.0`) salt okunur sorgulanır. Rölenin adı Hytera ve Harita ekranlarına
+aktarılır. Haritada telsiz işaretçisinden ayrı anten-kule simgesi ve `Röleye yaklaş`
+kontrolü hazırdır; sadece açıkça doğrulanmış röle GNSS konumu ile etkinleşebilir.
+Kimlik, bilinmeyen ham sayılar ve telsizden gelen eski konum bu simgeyi oluşturmaz.
+
+**GNSS alım entegrasyonu henüz tamamlanmadı.** Kullanıcı antenin takılı ve konumun
+alındığını belirtti. Mevcut GET/Trap kayıtlarında geçerli enlem/boylam yok; eldeki
+2014 üretici MIB'i GNSS nesnelerini tanımlamıyor. Harita bunu `GNSS koordinatı henüz
+alınmadı` diye bildirir. Çizim arayüzü yalnızca simüle edilmiş geçerli/bozuk konumlarla
+test edildi; canlı GNSS paketini bu arayüze aktaran çözücü henüz yoktur. Güncel HR659
+GNSS Trap MIB/API tanımı veya gerçek koordinat paketi alınarak birim, eksenler,
+geçerli fix bilgisi ve kaynak kimliği doğrulanmalıdır. Cihaz adı okunması GNSS
+başarısı sayılmaz. CPS ayarları ve Windows ağ ayarları değiştirilmedi.
+
+Ek referans: [Hytera RDAC uygulama notları](https://setronics.net/wp-content/uploads/descargables/Documentos-software/DMR/RD626/Manual%20Tecnico/WF_DMR%20Conventional%20Series%20RDAC%20Application%20Notes%20R2.1.pdf).

@@ -24,6 +24,7 @@ class MapPanel(ttk.Frame):
     def __init__(self, parent, archive):
         super().__init__(parent, padding=12)
         self.reader = LocationReader(archive.root)
+        self.repeater: dict = {}
         self.last_poll = 0.0
         self.zoom = 1.0
         self.center = project(35, 39)
@@ -85,7 +86,7 @@ class MapPanel(ttk.Frame):
             master=self, value=not self.base_map.get().endswith("(paket)")
         )
         self.show_grid = tk.BooleanVar(master=self, value=False)
-        ttk.Label(self, text="Harita · Telsiz konumu", font=("Segoe UI", 16, "bold")).pack(
+        ttk.Label(self, text="Harita · Telsiz ve röle", font=("Segoe UI", 16, "bold")).pack(
             anchor="w", pady=(0, 8)
         )
         row = ttk.Frame(self)
@@ -101,6 +102,14 @@ class MapPanel(ttk.Frame):
             side="right", padx=4
         )
         ttk.Button(row, text="Paket alanı", command=self.focus_pack).pack(side="right", padx=4)
+        repeater_row = ttk.Frame(self)
+        repeater_row.pack(fill="x", pady=(0, 8))
+        self.repeater_text = tk.StringVar(master=self, value="Röle • GNSS konumu bekleniyor")
+        ttk.Label(repeater_row, textvariable=self.repeater_text, wraplength=720).pack(side="left")
+        self.repeater_focus = ttk.Button(
+            repeater_row, text="Röleye yaklaş", command=self.focus_repeater, state="disabled"
+        )
+        self.repeater_focus.pack(side="right")
         self.summary = tk.StringVar(master=self, value="Konum mesajı bekleniyor")
         self.detail = tk.StringVar(master=self)
         ttk.Label(
@@ -358,6 +367,141 @@ class MapPanel(ttk.Frame):
             self.zoom = 5.0
             self.render()
 
+    def set_repeater(self, identity: dict, position: dict | None = None):
+        """Only an explicitly decoded repeater GNSS fix may create a marker.
+
+        Device identity alone, a handset position, or unknown vendor integers
+        are never converted into a repeater location.
+        """
+        point = {key: identity[key] for key in ("alias", "radio_id") if key in identity}
+        if position is not None:
+            try:
+                lat, lon = float(position["latitude"]), float(position["longitude"])
+                stamp = datetime.fromisoformat(position["observed_utc"])
+                if (
+                    position.get("basis") == "Hytera SNMP GNSS"
+                    and position.get("fix_valid") is True
+                    and stamp.tzinfo is not None
+                    and math.isfinite(lat)
+                    and math.isfinite(lon)
+                    and -90 <= lat <= 90
+                    and -180 <= lon <= 180
+                ):
+                    point.update(position, latitude=lat, longitude=lon)
+            except (KeyError, ValueError, TypeError, OverflowError):
+                pass
+        changed = point != self.repeater
+        self.repeater = point
+        name = point.get("alias", "Röle adı bekleniyor")
+        valid = "latitude" in point
+        detail = (
+            f"{point['latitude']:.6f}°, {point['longitude']:.6f}°"
+            if valid
+            else "GNSS koordinatı henüz alınmadı"
+        )
+        self.repeater_text.set(f"Röle • {name} • {detail}")
+        self.repeater_focus.configure(state="normal" if valid else "disabled")
+        if changed:
+            self.render()
+
+    def focus_repeater(self):
+        if "latitude" in self.repeater:
+            self.center = project(self.repeater["longitude"], self.repeater["latitude"])
+            self.zoom = 32
+            self.render()
+
+    def draw_repeater(self):
+        point = self.repeater
+        if "latitude" not in point:
+            return
+        x, y = self.screen(point["longitude"], point["latitude"])
+        canvas = self.canvas
+        if not (0 <= x <= canvas.winfo_width() and 0 <= y <= canvas.winfo_height()):
+            return
+        age = max(
+            0,
+            (
+                datetime.now(timezone.utc) - datetime.fromisoformat(point["observed_utc"])
+            ).total_seconds(),
+        )
+        color = "#195f9d" if age <= 60 else "#697383"
+        size = max(18, min(42, 18 + 4 * math.log2(max(1, self.zoom))))
+        # Antenna tower with an exact coordinate anchor; distinct from handset marker.
+        canvas.create_polygon(
+            x,
+            y - size,
+            x - size / 3,
+            y,
+            x + size / 3,
+            y,
+            fill="white",
+            outline=color,
+            width=3,
+            tags="repeater",
+        )
+        canvas.create_line(
+            x - size / 6,
+            y - size / 2,
+            x + size / 6,
+            y - size / 2,
+            fill=color,
+            width=2,
+            tags="repeater",
+        )
+        canvas.create_oval(
+            x - 4, y - size - 4, x + 4, y - size + 4, fill=color, outline="white", tags="repeater"
+        )
+        for r in (size / 3, size / 2):
+            canvas.create_arc(
+                x - r,
+                y - size - r,
+                x + r,
+                y - size + r,
+                start=-50,
+                extent=100,
+                style="arc",
+                outline=color,
+                width=2,
+                tags="repeater",
+            )
+            canvas.create_arc(
+                x - r,
+                y - size - r,
+                x + r,
+                y - size + r,
+                start=130,
+                extent=100,
+                style="arc",
+                outline=color,
+                width=2,
+                tags="repeater",
+            )
+        label = f"{point.get('alias', 'Röle')}\nGNSS • {age:.0f} sn önce" + (
+            " • eski konum" if age > 60 else ""
+        )
+        tx = min(max(100, x), max(100, canvas.winfo_width() - 100))
+        item = canvas.create_text(
+            tx,
+            y + 12,
+            text=label,
+            anchor="n",
+            fill=color,
+            font=("Segoe UI", 10, "bold"),
+            width=190,
+            tags="repeater",
+        )
+        bbox = canvas.bbox(item)
+        background = canvas.create_rectangle(
+            bbox[0] - 5,
+            bbox[1] - 3,
+            bbox[2] + 5,
+            bbox[3] + 3,
+            fill="white",
+            outline=color,
+            tags="repeater",
+        )
+        canvas.tag_lower(background, item)
+
     def change_zoom(self, factor):
         target = max(1, min(8192, self.zoom * factor))
         tiles = self.tile_sets.get(self.base_map.get())
@@ -531,6 +675,8 @@ class MapPanel(ttk.Frame):
                     text="Son telsiz görünüm dışında — ‘Son telsize yaklaş’ düğmesini kullanın",
                     fill="#8e1939",
                 )
+
+        self.draw_repeater()
 
     def poll(self):
         if time.monotonic() - self.last_poll < 1:

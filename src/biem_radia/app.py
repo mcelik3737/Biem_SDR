@@ -787,6 +787,7 @@ class RadiaApp:
 
     def poll(self):
         self.repeater_panel.poll()
+        self.map_panel.set_repeater(self.repeater_panel.snmp.snapshot()["identity"])
         if self.repeater_panel.archive_changed:
             self.repeater_panel.archive_changed = False
             self.refresh_archive()

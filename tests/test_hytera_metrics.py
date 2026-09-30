@@ -51,7 +51,9 @@ def test_units_enums_rssi_sentinel_and_wrong_tags():
     assert decode_measurement(13, 4, raw_float(-1)).value is None
     assert decode_measurement(4, 4, raw_float(0)).value is None
     assert decode_measurement(1, 2, 14).value is None
-    assert decode_measurement(5, 4, raw_float(30)).value is None
+    assert decode_measurement(5, 4, raw_float(30)).text == "30.0 W"
+    assert decode_measurement(6, 4, raw_float(0)).text == "0.0 W"
+    assert decode_measurement(5, 4, raw_float(-1)).value is None
 
 
 def test_metric_log_and_per_field_staleness(tmp_path, monkeypatch):

@@ -187,3 +187,28 @@ Uygulama yeniden başlatıldı; SNMP izlemesi çalışıyor. Son manuel ekran ko
 başka uygulamanın oturum açma penceresi ön plandaydı; bu pencereye müdahale edilmedi,
 sayısal hücreler donanımsız GUI testiyle doğrulandı.
 Yedek: `data/backups/snmp-values-before-20260930-161816`.
+
+## 2026-09-30 RDAC benzeri skalalar ve elle RSSI okuma
+
+Check-Radia.ps1 son çalıştırması tamamen geçti: Ruff, format, ty, basedpyright,
+**189 test**, %80 toplam kapsam. `python -m uv build` wheel ve sdist üretti.
+Ara odaklı testte Python/Tk'nin daha önce kaydedilmiş çoklu yorumlayıcı `tk.tcl`
+hatası görüldü; ayrı süreçte test geçti ve son tam kontrolde tekrar etmedi.
+
+Gerçek HR659 ile salt okunur GET/Trap testi: 13,99 V, 28 °C; arayüz kontrolünde
+29 °C; boşta ileri/yansıyan güç 0 W. Röle adı ve kimliği cihazdan alındı.
+Uygulama gerçek profille açıldı; koyu temadaki beş skala, PLL, RSSI ve yerel
+ayarlar görsel olarak kontrol edildi. Ekrandaki RSSI oku düğmesine basıldı;
+iki slotun yeni GET yanıtları -200 olduğundan Ölçüm yok gösterildi, iki olay da
+günlüğe düştü. Aktif konuşma sırasında bu düğmenin kullanıcı testi bekleniyor.
+SNMP istek-numarası/kaynak-port eşleştirme, ilgisiz cevap, yanlış kaynak,
+zaman aşımı, hata cevabı, kapanış ve çift tıklama donanımsız testte doğrulandı.
+Koyu/açık tema ve dar yerleşim ayrıca GUI testinde doğrulandı.
+
+Röle GNSS harita işi kısmi: SNMP adı haritaya bağlı; ayrı simge, geçerli fix
+kontrolü ve odaklama arayüzü sentetik koordinatla test edildi. Gerçek koordinat
+bildirimi alınmadı; eldeki MIB GNSS tanımı içermiyor. Canlı GNSS çözümü/harita
+beslemesi henüz uygulanmadı. Kimlik verisi veya telsiz konumu röle koordinatı
+sayılmaz. CPS yalnızca görüntülendi; ayar yazılmadı. SDR ve ses motoru aynı.
+
+Yedek: `data/backups/hytera-gauges-before-20260930-162703`.

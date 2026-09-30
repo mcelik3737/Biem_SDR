@@ -47,3 +47,18 @@ değerlerini de görmek istedi. Röle kısa süre kapalıydı; kullanıcı açt�
 kaynak ve batarya özeti; durum tablosuna ölçüm sütunu eklendi. Değişen değerler
 günlüğe yazılıyor. Eksik/geçersiz bilgi sayı olarak doldurulmuyor; her ölçümün
 güncelliği ayrı tutuluyor. Harici ölçü aletiyle kalibrasyon yapılmadı.
+
+## Aynı gün — RDAC skalaları, RSSI ve röle konumu
+
+Kullanıcı RDAC ekranlarını örnek göstererek voltaj, sıcaklık, VSWR, ileri/yansıyan
+güç ve PLL için görsel izleme istedi. Ayrıca iki slotun RSSI değerini yeni sorguyla
+okutan bir düğme istedi. Koyu/açık temaya uyan skalalar ve bağımsız elle okuma
+uygulandı; boşta canlı cihaz yanıtları doğrulandı. Geçmiş değer yeni okuma diye
+gösterilmez, -200 boş ölçüm olarak ele alınır. SDR ve Hytera ses motoru değişmedi.
+
+Kullanıcı ayrıca SNMP cihaz adına göre GNSS konumunu röle simgesiyle haritada
+görmek istedi; GNSS anteninin takılı ve konumun alındığını bildirdi. Röle adı
+canlı okundu. Harita simgesi/odaklama arayüzü hazırlandı, ancak canlı GNSS koordinat
+paketi henüz alınamadı ve eldeki MIB'de GNSS şeması yok. Bu nedenle GNSS çözücü
+bağlantısı tamamlanmış sayılmıyor; haritada bekleme bilgisi var, tahmini konum yok.
+Sonraki adım güncel GNSS MIB/API veya gerçek Trap örneğinin incelenmesi.

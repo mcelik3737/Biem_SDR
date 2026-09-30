@@ -15,6 +15,8 @@ METRICS = {
     1: "Besleme gerilimi",
     2: "Güç katı sıcaklığı",
     4: "VSWR / anten",
+    5: "İleri güç",
+    6: "Yansıyan güç",
     9: "Slot 1 RSSI (MIB)",
     10: "Slot 2 RSSI (MIB)",
     11: "Besleme türü",
@@ -22,8 +24,8 @@ METRICS = {
     13: "Batarya gerilimi",
 }
 METRIC_OIDS = {f"{DATA_BASE}{n}.0": n for n in METRICS}
-# Alarm row -> independent measurement object. Fan and RF power units are unverified.
-ALARM_METRICS = {1: 1, 2: 2, 6: 4, 9: 13}
+# Alarm row -> independent measurement object. RDAC labels RF power in watts.
+ALARM_METRICS = {1: 1, 2: 2, 4: 5, 5: 6, 6: 4, 9: 13}
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,8 @@ def decode_measurement(number: int, tag: int, raw: int | str | None) -> Measurem
         return Measurement(value, "°C", f"{value:.1f} °C")
     if number == 4 and 1 <= value <= 100:
         return Measurement(value, ":1", f"{value:.2f}:1")
+    if number in (5, 6) and 0 <= value <= 1000:
+        return Measurement(value, "W", f"{value:.1f} W")
     return missing
 
 
