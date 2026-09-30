@@ -144,7 +144,8 @@ bildirdi. İleri ve yansıyan güç alanları `-1 / tanımsız` bildirdi; bunlar
 olarak sayılmadı. Aktif tanımlı alarm gözlenmedi. Gerçek arıza oluşturulmadı;
 alarm oluşması/temizlenmesi ve zaman aşımı donanımsız testlerde doğrulandı.
 Üreticiye özgü sayısal byte dizileri belgelenmiş birim ve byte sırası olmadan
-volt, derece veya RF gücü diye yorumlanmaz. Standart GNSS trap ayarının açık
+volt, derece veya RF gücü diye yorumlanmaz. Aşağıdaki ölçüm desteğinde gerilim
+ve sıcaklığın biçimi ayrıca doğrulandı. Standart GNSS trap ayarının açık
 olması, yeni geçerli GPS koordinatı alındığı anlamına gelmez.
 
 Kaynaklar:
@@ -153,3 +154,47 @@ Kaynaklar:
 - [Hytera HR65X ürün bilgisi](https://www.hytera.com/en/product-new/digital-radio/dmr-system/hr65x.html).
 - [Hytera üretici MIB'i, LibreNMS arşivi](https://github.com/librenms/librenms/blob/master/mibs/hytera/HYTERA-REPEATER-MIB) — 2014 sürümü; HR659'da cevaplanan alanlar yukarıda ayrıca belirtilmiştir.
 - [RFC 1157](https://www.rfc-editor.org/rfc/rfc1157), [RFC 3416](https://www.rfc-editor.org/rfc/rfc3416).
+
+## Sayısal ölçümler — 30 Eylül 2026
+
+Kullanıcının isteğiyle, alarm durumundan ayrı **Ölçülen değer** sütunu eklendi.
+Hytera ana sayfasında besleme voltajı, güç katı sıcaklığı, besleme türü ve batarya
+bağlantısı da görünür. Durum penceresinde ilave RSSI/besleme satırlarına sağdaki
+kaydırma çubuğuyla ulaşılır. GET listesine aşağıdaki 8 salt okunur nesne eklendi:
+
+| Veri | `1.3.6.1.4.1.40297.1.2.1.2.` sonrası | Gösterim |
+| --- | --- | --- |
+| Besleme gerilimi | `1.0` | V, 2 ondalık |
+| Güç katı sıcaklığı | `2.0` | °C, 1 ondalık |
+| VSWR | `4.0` | oran `:1`; 0 ölçüm yok |
+| Slot 1 / 2 RSSI | `9.0` / `10.0` | MIB birimi dB; -200 ölçüm yok |
+| Besleme türü | `11.0` | DC / Batarya |
+| Batarya bağlantısı | `12.0` | Bağlı / Bağlı değil |
+| Batarya gerilimi | `13.0` | V; -1 ve 0 ölçüm yok |
+
+MIB float alanları 4 baytlık OCTET STRING'dir. IEEE754 float32 little-endian
+biçimi LibreNMS'nin Hytera sensör uygulamasıyla kontrol edildi; standart Python
+`struct` çözümü kullanılır, üçüncü taraf kod taşınmaz. Byte sırası otomatik tahmin
+edilmez. Bozuk uzunluk/tip, NaN, sonsuz ve anlamsız değerler sayı olarak gösterilmez.
+Sıcaklıkta 0 ve -1 °C geçerli olabilir; gerilim için kullanılan boş-değer kuralı
+sıcaklığa uygulanmaz. MIB'nin RSSI birimi dB'dir; dBm ya da SDR anten ölçümü olarak
+yeniden etiketlenmez. Fan devri ve ileri/yansıyan güç birimi/ölçeği doğrulanmadığı
+için bunlara rpm/W sayısı yazılmaz; gelen ham veri mevcut günlükte korunur.
+
+Her ölçümün kendi son alınma zamanı tutulur. Başka bir Trap gelmesi eski voltajı
+güncel yapmaz. 35 saniyeyi aşan veya izleme kapalıyken görülen sayılar eski veri
+olarak işaretlenir. Ölçüm değişimleri okunabilir birimli metin ve ham OID/değerle
+günlüğe yazılır; ayrıca dakikalık ölçüm özeti vardır. Ölçüm değeri, ayrı üretici
+alarm bildirimini kendiliğinden temizlemez.
+
+Gerçek HR659 yeniden açıldıktan sonra GET ile **13,9855957 V** ve **28,0 °C**,
+DC besleme, batarya bağlantısı yok, RSSI -200, batarya gerilimi -1 alındı.
+Bunlar cihazın bildirdiği ölçümlerdir; harici voltmetre/sıcaklık referansıyla
+kalibrasyon testi yapılmadı. Daha önceki Trap kaydındaki 13,929653 V ve 28 °C de
+aynı kodlamayla çözüldü.
+
+Ek teknik kaynaklar:
+
+- [LibreNMS Hytera voltaj sensörü](https://github.com/librenms/librenms/blob/master/includes/discovery/sensors/voltage/hytera.inc.php).
+- [LibreNMS Hytera sıcaklık sensörü](https://github.com/librenms/librenms/blob/master/includes/discovery/sensors/temperature/hytera.inc.php).
+- [LibreNMS Hytera float dönüşüm tanımı](https://github.com/librenms/librenms/blob/master/includes/functions.php).

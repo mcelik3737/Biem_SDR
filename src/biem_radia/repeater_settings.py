@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+from .hytera_metrics import ALARM_METRICS, METRICS, measurement_cell
 from .hytera_receiver import HyteraReceiver
 from .hytera_snmp import ALARM_BASE, ALARMS, SnmpMonitor, repeater_badge
 from .storage import Archive
@@ -32,6 +33,7 @@ class RepeaterSettingsPanel(ttk.Frame):
         self.linked_at = 0.0
         self.health_window: tk.Toplevel | None = None
         self.health_text = tk.StringVar(value="Röle durum izlemesi kapalı")
+        self.measurement_text = tk.StringVar(value="Besleme: —   •   Güç katı: —")
         self.fields = {
             key: tk.StringVar(value=value)
             for key, value in {
@@ -74,6 +76,9 @@ class RepeaterSettingsPanel(ttk.Frame):
             side="left", padx=12
         )
         ttk.Label(self, textvariable=self.health_text, wraplength=850).pack(anchor="w", pady=(6, 0))
+        ttk.Label(
+            self, textvariable=self.measurement_text, font=("Segoe UI", 12, "bold"), wraplength=850
+        ).pack(anchor="w", pady=(6, 0))
         form = ttk.Frame(self)
         form.pack(anchor="w", pady=18)
         labels = {
@@ -197,13 +202,23 @@ class RepeaterSettingsPanel(ttk.Frame):
         ttk.Label(self.health_window, textvariable=self.health_text, wraplength=860).pack(
             fill="x", padx=16, pady=12
         )
-        self.health_fields = ttk.Treeview(self.health_window, columns=("value", "age"), height=9)
+        table = ttk.Frame(self.health_window)
+        table.pack(fill="x", padx=16)
+        self.health_fields = ttk.Treeview(table, columns=("reading", "value", "age"), height=9)
         self.health_fields.heading("#0", text="İzlenen alan")
-        self.health_fields.heading("value", text="Son bildirim")
+        self.health_fields.heading("reading", text="Ölçülen değer")
+        self.health_fields.heading("value", text="Alarm durumu")
         self.health_fields.heading("age", text="Güncellik")
-        self.health_fields.pack(fill="x", padx=16)
+        for column, width in (("#0", 180), ("reading", 210), ("value", 180), ("age", 245)):
+            self.health_fields.column(column, width=width, minwidth=80)
+        table_scroll = ttk.Scrollbar(table, command=self.health_fields.yview)
+        self.health_fields.configure(yscrollcommand=table_scroll.set)
+        table_scroll.pack(side="right", fill="y")
+        self.health_fields.pack(fill="x")
         for n, (label, _) in ALARMS.items():
             self.health_fields.insert("", "end", iid=str(n), text=label)
+        for n in (11, 12, 9, 10):
+            self.health_fields.insert("", "end", iid=f"metric{n}", text=METRICS[n])
         ttk.Label(
             self.health_window,
             text="Son olaylar (yerel saat) • Tüm günlük: Veri günlüğü / data/hytera-status",
@@ -239,16 +254,33 @@ class RepeaterSettingsPanel(ttk.Frame):
         self.health_text.set(
             f"{label} • {age}\n{detail}" + (f" • {state['error']}" if state["error"] else "")
         )
+        now = time.monotonic()
+        measures = state["measurements"]
+        summary = []
+        for n, title in ((1, "Besleme"), (2, "Güç katı"), (11, "Kaynak"), (12, "Batarya")):
+            value, freshness = measurement_cell(measures.get(n), now, state["running"])
+            summary.append(f"{title}: {value}" + (" (eski)" if "eski" in freshness else ""))
+        self.measurement_text.set("   •   ".join(summary))
         if self.health_window is None or not self.health_window.winfo_exists():
             return
-        now = time.monotonic()
         for n in ALARMS:
             record = state["fields"].get(f"{ALARM_BASE}{n}.0")
             value = record[2].split(": ", 1)[1] if record else "Henüz bildirilmedi"
             freshness = f"{max(0, now - record[1]):.0f} sn önce" if record else "—"
             if record and (now - record[1] > 35 or not state["fresh"]):
                 freshness += " • eski veri"
-            self.health_fields.item(str(n), values=(value, freshness))
+            measurement_id = ALARM_METRICS.get(n)
+            reading, measured_at = measurement_cell(
+                measures.get(measurement_id), now, state["running"]
+            )
+            if measurement_id is None:
+                reading = "— / sayısal değer doğrulanmadı"
+            else:
+                freshness = f"Ölçüm: {measured_at} / Alarm: {freshness}"
+            self.health_fields.item(str(n), values=(reading, value, freshness))
+        for n in (11, 12, 9, 10):
+            reading, freshness = measurement_cell(measures.get(n), now, state["running"])
+            self.health_fields.item(f"metric{n}", values=(reading, "—", freshness))
         history = "\n".join(
             f"{datetime.fromisoformat(item['observed_utc']).astimezone():%d.%m.%Y %H:%M:%S}  {item['raw']}"
             for item in state["history"]

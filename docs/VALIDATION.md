@@ -168,3 +168,22 @@ durdurması ayrıca test edildi. Wheel ve sdist üretildi.
 Yedek: `data/backups/snmp-before-20260930-160858`. Gerçek IP profili,
 telemetri ve günlükler yalnızca yerelde. Kullanım ve teknik kaynaklar:
 [HYTERA_ETHERNET.md](HYTERA_ETHERNET.md).
+
+## 2026-09-30 SNMP voltaj ve sıcaklık değerleri
+
+Gerçek HR659'dan alınan OCTET STRING değerleri çözüldü: 13,9855957 V,
+28 °C; DC besleme, batarya bağlantısı yok. Ayrı 12 saniyelik canlı monitor
+testinde bu değerler yeni ölçüm motoruna alındı; kapatmada soketler bırakıldı.
+Ana ekrana özet ve alarm tablosuna ayrı ölçüm sütunu eklendi. Bilinmeyen birimler,
+RSSI -200, batarya gerilimi -1, VSWR 0 gerçek sayı olarak sunulmuyor.
+Yeni testlerde birimler, negatif/0 sıcaklık, endian/tip/uzunluk hataları,
+NaN/sonsuz, her ölçüm için bağımsız eskime, günlük ve GUI hücreleri doğrulandı.
+
+Check-Radia.ps1: Ruff/format/ty/basedpyright geçti; 180 test başarılı, iki mevcut
+GUI testi aynı toplu Python/Tk sürecinde hata verdi (PhotoImage TclError ve
+spektrum işaretçisi eşik güncellemesi). İki test de ayrı temiz Python süreçlerinde
+geçti. Yeni ölçüm/SNMP odaklı 18 test ayrıca geçti. SDR/kayıt motoru değiştirilmedi.
+Uygulama yeniden başlatıldı; SNMP izlemesi çalışıyor. Son manuel ekran kontrolünde
+başka uygulamanın oturum açma penceresi ön plandaydı; bu pencereye müdahale edilmedi,
+sayısal hücreler donanımsız GUI testiyle doğrulandı.
+Yedek: `data/backups/snmp-values-before-20260930-161816`.

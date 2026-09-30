@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .hytera_metrics import METRIC_OIDS, METRICS, decode_measurement
+
 UPTIME = "1.3.6.1.2.1.1.3.0"
 ALARM_BASE = "1.3.6.1.4.1.40297.1.2.1.1."
 ALARMS = {
@@ -33,7 +35,7 @@ ALARMS = {
     9: ("Batarya gerilimi", {0: "Normal", 1: "Anormal"}),
 }
 # One object per GET: an unsupported optional OID must not hide other alarms.
-POLL_OIDS = [UPTIME] + [f"{ALARM_BASE}{n}.0" for n in ALARMS]
+POLL_OIDS = [UPTIME] + [f"{ALARM_BASE}{n}.0" for n in ALARMS] + list(METRIC_OIDS)
 
 
 def _tlv(data: bytes, at: int = 0) -> tuple[int, bytes, int]:
@@ -184,6 +186,7 @@ class SnmpMonitor:
         self.last_seen: float | None = None
         self.started: float | None = None
         self.alarms: dict[str, tuple[int | None, float, str]] = {}
+        self.measurements: dict[int, dict] = {}
         self.history: deque[dict] = deque(maxlen=100)
         self.lock = threading.Lock()
         self.error = ""
@@ -203,6 +206,7 @@ class SnmpMonitor:
         self.last_seen = None
         self.started = time.monotonic()
         self.alarms.clear()
+        self.measurements.clear()
         self.unsupported.clear()
         self.error = ""
         self.cancel.clear()
@@ -232,6 +236,7 @@ class SnmpMonitor:
                     for value, at, _ in self.alarms.values()
                 ),
                 "fields": dict(self.alarms),
+                "measurements": {n: dict(record) for n, record in self.measurements.items()},
                 "normal": normal,
                 "unknown": unknown,
                 "waiting": self.running and self.started is not None and now - self.started < 35,
@@ -265,10 +270,26 @@ class SnmpMonitor:
     def observe(self, message: SnmpMessage, *, now: float | None = None):
         now = time.monotonic() if now is None else now
         changed = []
+        readings = []
         with self.lock:
             self.last_seen = now
             if not message.error:
                 for oid, tag, value in message.values:
+                    if oid in METRIC_OIDS:
+                        n = METRIC_OIDS[oid]
+                        reading = decode_measurement(n, tag, value)
+                        previous = self.measurements.get(n)
+                        self.measurements[n] = {
+                            "value": reading.value,
+                            "unit": reading.unit,
+                            "text": reading.text,
+                            "at": now,
+                            "raw": value,
+                            "oid": oid,
+                        }
+                        if previous is None or previous["text"] != reading.text:
+                            readings.append(f"{METRICS[n]}: {reading.text}")
+                        continue
                     if not oid.startswith(ALARM_BASE):
                         continue
                     suffix = oid[len(ALARM_BASE) :].split(".")
@@ -290,10 +311,10 @@ class SnmpMonitor:
                     self.alarms[oid] = valid, now, label
                     if previous is None or previous[0] != valid:
                         changed.append(label)
-        if message.kind == "trap" or changed:
+        if message.kind == "trap" or changed or readings:
             self.event(
-                " • ".join(changed) or message.description,
-                category="SNMP bildirimi",
+                " • ".join(changed + readings) or message.description,
+                category="SNMP ölçüm" if readings and not changed else "SNMP bildirimi",
                 values=message.values,
             )
 
@@ -384,6 +405,14 @@ class SnmpMonitor:
                         f"Durum: {'yanıt var' if linked else 'yanıt bekleniyor'} • Normal alan {state['normal']} • Alarm {len(state['active'])}",
                         category="durum özeti",
                     )
+                    if state["measurements"]:
+                        self.event(
+                            " • ".join(
+                                f"{METRICS[n]}: {record['text']} ({max(0, now - record['at']):.0f} sn önce)"
+                                for n, record in state["measurements"].items()
+                            ),
+                            category="ölçüm özeti",
+                        )
                     next_log = now + 60
         except Exception as exc:
             self.error = f"SNMP izleme durdu: {exc}"

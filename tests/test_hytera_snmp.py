@@ -5,6 +5,7 @@ import pytest
 
 from biem_radia.hytera_snmp import (
     ALARM_BASE,
+    POLL_OIDS,
     UPTIME,
     SnmpMessage,
     SnmpMonitor,
@@ -159,7 +160,9 @@ def test_socket_filtering_read_only_and_release(tmp_path, monkeypatch):
     monkeypatch.setattr("biem_radia.hytera_snmp.socket.socket", FakeSocket)
     monkeypatch.setattr("biem_radia.hytera_snmp.select.select", ready)
     monitor._run("192.168.1.118", "192.168.1.98")
-    assert len(sent) == 10 and all(address == ("192.168.1.98", 161) for _, address in sent)
+    assert len(sent) == len(POLL_OIDS) and all(
+        address == ("192.168.1.98", 161) for _, address in sent
+    )
     assert all(_fields(_tlv(data)[1])[2][0] == 0xA0 for data, _ in sent)
     assert all(s.closed for s in sockets)
     assert len(monitor.alarms) == 9 and not monitor.snapshot()["active"]

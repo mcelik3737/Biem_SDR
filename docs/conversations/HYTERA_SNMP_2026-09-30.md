@@ -38,3 +38,12 @@ normal bildirimiyle temizlenir; ilgisiz paketler alarmı temizlemez.
 
 Ayrıntılar: [Hytera kullanım ve teknik notları](../HYTERA_ETHERNET.md),
 [Doğrulama günlüğü](../VALIDATION.md).
+
+## Aynı gün ek talep — sayısal değerler
+
+Kullanıcı yalnızca normal/alarm yazısını değil, SNMP'de varsa voltaj gibi ölçüm
+değerlerini de görmek istedi. Röle kısa süre kapalıydı; kullanıcı açtıktan sonra
+13,99 V ve 28 °C canlı olarak alındı. Ana Hytera ekranına besleme, sıcaklık,
+kaynak ve batarya özeti; durum tablosuna ölçüm sütunu eklendi. Değişen değerler
+günlüğe yazılıyor. Eksik/geçersiz bilgi sayı olarak doldurulmuyor; her ölçümün
+güncelliği ayrı tutuluyor. Harici ölçü aletiyle kalibrasyon yapılmadı.
