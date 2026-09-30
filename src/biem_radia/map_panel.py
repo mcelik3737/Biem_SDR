@@ -55,6 +55,7 @@ class MapPanel(ttk.Frame):
         self.satellite = SatelliteTiles(archive.root / "map-import/googlemaps/googlemaps/satellite")
         self.tile_sets = {"Uydu (yerel paket)": self.satellite} if self.satellite.tiles else {}
         self.tile_credits = {}
+        self.tile_resolution = {}
         self.satellite_levels = set()
         for manifest in sorted((archive.root / "map-packs").glob("*/manifest.json")):
             try:
@@ -65,6 +66,7 @@ class MapPanel(ttk.Frame):
                 if tiles.tiles:
                     name = f"{info['name']} (paket)"
                     self.tile_sets[name] = tiles
+                    self.tile_resolution[name] = float(info.get("source_resolution_m", 0))
                     self.tile_credits[name] = " • ".join(
                         str(info[key])
                         for key in ("description", "attribution", "license")
@@ -107,15 +109,24 @@ class MapPanel(ttk.Frame):
         ttk.Label(self, textvariable=self.detail, wraplength=1050).pack(anchor="w", pady=(4, 10))
         layers = ttk.Frame(self)
         layers.pack(fill="x", pady=(0, 8))
-        self.base_box = ttk.Combobox(
+        self.street_button = ttk.Button(
             layers,
-            textvariable=self.base_map,
-            state="readonly",
-            width=38,
-            values=["Standart", *([VECTOR_NAME] if self.vector else []), *self.tile_sets],
+            text="Sokak",
+            width=11,
+            padding=(14, 12),
+            command=lambda: self.select_layer(False),
         )
-        self.base_box.pack(side="left", padx=(0, 14))
-        self.base_box.bind("<<ComboboxSelected>>", lambda event: self.render())
+        self.street_button.pack(side="left", padx=(0, 6))
+        self.satellite_button = ttk.Button(
+            layers,
+            text="Uydu",
+            width=11,
+            padding=(14, 12),
+            command=lambda: self.select_layer(True),
+        )
+        self.satellite_button.pack(side="left", padx=(0, 14))
+        if not self.tile_sets:
+            self.satellite_button.state(["disabled"])
         self.city_places = {p["name"]: p for p in self.detail_layer.places}
         self.city_name = tk.StringVar(master=self, value="Şehre yaklaş…")
         self.city_box = ttk.Combobox(
@@ -127,8 +138,21 @@ class MapPanel(ttk.Frame):
         )
         self.city_box.pack(side="left", padx=(0, 14))
         self.city_box.bind("<<ComboboxSelected>>", lambda event: self.focus_city())
+        self.native_button = ttk.Button(
+            layers,
+            text="Uygun yakınlık",
+            command=self.focus_native,
+        )
+        self.satellite_hint = tk.StringVar(master=self)
+        self.satellite_hint_label = ttk.Label(
+            self,
+            textvariable=self.satellite_hint,
+            style="Muted.TLabel",
+            wraplength=1000,
+        )
         toggles = ttk.Frame(self)
         toggles.pack(fill="x", pady=(0, 8))
+        self.map_toggles = toggles
         for label, variable in [
             ("İl sınırları", self.show_borders),
             ("Şehir adları", self.show_cities),
@@ -160,6 +184,50 @@ class MapPanel(ttk.Frame):
         self.bind("<Destroy>", self.close_vector, add="+")
         if self.vector_worker:
             self.vector_after = self.after(80, self.poll_vector)
+
+    def select_layer(self, satellite):
+        if satellite and not self.tile_sets:
+            return
+        self.base_map.set(
+            next(reversed(self.tile_sets))
+            if satellite
+            else VECTOR_NAME
+            if self.vector
+            else "Standart"
+        )
+        # Keep the coordinate and scale for direct comparison between the two layers.
+        self.render()
+
+    def focus_native(self):
+        tiles = self.tile_sets.get(self.base_map.get())
+        if tiles:
+            native = tiles.native_scale_at(self.center[0] / COS39, -self.center[1])
+            if native:
+                self.zoom = max(1, min(8192, self.zoom * native / self.scale()))
+                self.render()
+
+    def update_layer_controls(self):
+        selected = self.tile_sets.get(self.base_map.get())
+        self.street_button.configure(style="TButton" if selected else "Primary.TButton")
+        self.satellite_button.configure(style="Primary.TButton" if selected else "TButton")
+        if selected is None:
+            self.native_button.pack_forget()
+            self.satellite_hint_label.pack_forget()
+            return
+        self.native_button.pack(side="left")
+        level = selected.detail_at(self.center[0] / COS39, -self.center[1])
+        if level is None:
+            hint = "Bu konum için çevrimdışı uydu görüntüsü yok."
+        else:
+            metres = 156543.03392 * math.cos(math.radians(-self.center[1])) / 2**level
+            resolution = max(metres, self.tile_resolution.get(self.base_map.get(), 0))
+            hint = f"Uydu • Bu konumdaki ayrıntı yaklaşık {resolution:.0f} m • İnternet gerekmez"
+            native = selected.native_scale_at(self.center[0] / COS39, -self.center[1])
+            if native and self.scale() > native * 1.05:
+                hint += " • Ayrıntı sınırı: görüntü büyütülüyor. Uygun yakınlık düğmesini kullanın."
+        self.satellite_hint.set(hint)
+        if not self.satellite_hint_label.winfo_manager():
+            self.satellite_hint_label.pack(before=self.map_toggles, anchor="w", pady=(0, 8))
 
     def close_vector(self, event):
         if event.widget is not self:
@@ -291,7 +359,15 @@ class MapPanel(ttk.Frame):
             self.render()
 
     def change_zoom(self, factor):
-        self.zoom = max(1, min(8192, self.zoom * factor))
+        target = max(1, min(8192, self.zoom * factor))
+        tiles = self.tile_sets.get(self.base_map.get())
+        if tiles and factor > 1:
+            native = tiles.native_scale_at(self.center[0] / COS39, -self.center[1])
+            if native:
+                # Allow modest enlargement; don't turn one source pixel into a huge blur.
+                limit = self.zoom * native * 2 / self.scale()
+                target = max(self.zoom, min(target, limit))
+        self.zoom = target
         self.render()
 
     def drag_start(self, event):
@@ -330,6 +406,7 @@ class MapPanel(ttk.Frame):
 
     def render(self):
         self.update_credit()
+        self.update_layer_controls()
         canvas = self.canvas
         canvas.delete("all")
         w, h = canvas.winfo_width(), canvas.winfo_height()

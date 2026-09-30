@@ -7,6 +7,14 @@ from pathlib import Path
 COS39 = math.cos(math.radians(39))
 
 
+def scale_distance(pixels_per_km: float, target_pixels: float = 130) -> tuple[float, float]:
+    """A 1/2/5 distance that fits the bar, including metre-scale street views."""
+    target = target_pixels / pixels_per_km
+    decade = 10 ** math.floor(math.log10(target))
+    distance = max(value * decade for value in (1, 2, 5) if value * decade <= target)
+    return distance, distance * pixels_per_km
+
+
 def projected_geometry(geometry):
     polygons = (
         geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
@@ -132,11 +140,8 @@ class MapDetail:
         pixels_per_km = (
             panel.scale() * COS39 / (111.32 * max(0.1, math.cos(math.radians(latitude))))
         )
-        target = 130 / pixels_per_km
-        distance = max(
-            (v for v in (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000) if v <= target), default=1
-        )
-        length = distance * pixels_per_km
+        distance, length = scale_distance(pixels_per_km)
+        label = f"{distance * 1000:g} m" if distance < 1 else f"{distance:g} km"
         canvas.create_rectangle(
             12, h - 56, max(180, length + 42), h - 10, fill="white", outline="#cfdae0", tags="scale"
         )
@@ -147,7 +152,7 @@ class MapDetail:
             26,
             h - 42,
             anchor="w",
-            text=f"Yaklaşık {distance} km",
+            text=f"Yaklaşık {label}",
             fill="#455c6c",
             font=("Segoe UI", 9),
             tags="scale",

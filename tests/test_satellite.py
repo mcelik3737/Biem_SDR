@@ -4,6 +4,7 @@ import tkinter as tk
 
 from PIL import Image
 
+from biem_radia.map_detail import scale_distance
 from biem_radia.map_panel import MapPanel, project
 from biem_radia.satellite import SatelliteTiles, bounds, latitude, tile_y
 from biem_radia.storage import Archive
@@ -24,7 +25,12 @@ def test_local_tiles_render_and_marker_alignment(tmp_path):
     directory = tmp_path / "map-import/googlemaps/googlemaps/satellite/4/9"
     directory.mkdir(parents=True)
     Image.new("RGB", (256, 256), (80, 100, 150)).save(directory / "6.jpg")
-    assert len(SatelliteTiles(directory.parents[1]).tiles) == 1
+    x = int((29.242599 + 180) / 360 * 2**14)
+    y = int(tile_y(40.881391, 14))
+    detail = directory.parents[1] / "14" / str(x) / f"{y}.jpg"
+    detail.parent.mkdir(parents=True)
+    Image.new("RGB", (256, 256), "beige").save(detail)
+    assert len(SatelliteTiles(directory.parents[1]).tiles) == 2
     root = tk.Tk()
     root.withdraw()
     try:
@@ -41,6 +47,28 @@ def test_local_tiles_render_and_marker_alignment(tmp_path):
         panel.render()
         assert not panel.canvas.find_withtag("satellite")
         assert panel.screen(29.242599, 40.881391) == before
+        # Actual touch controls retain location when switching layer.
+        panel.satellite_button.invoke()
+        assert panel.canvas.find_withtag("satellite")
+        assert panel.satellite_button.cget("style") == "Primary.TButton"
+        assert panel.screen(29.242599, 40.881391) == before
+        panel.street_button.invoke()
+        assert not panel.canvas.find_withtag("satellite")
+        assert panel.street_button.cget("style") == "Primary.TButton"
+        assert panel.screen(29.242599, 40.881391) == before
+        # Prevent endless enlargement, while preserving a deliberately close street view.
+        panel.satellite_button.invoke()
+        panel.center = project(29.242599, 40.881391)
+        panel.focus_native()
+        native_zoom = panel.zoom
+        panel.change_zoom(100)
+        assert math.isclose(panel.zoom, native_zoom * 2)
+        panel.change_zoom(2)
+        assert math.isclose(panel.zoom, native_zoom * 2)
+        assert "Ayrıntı sınırı" in panel.satellite_hint.get()
+        panel.native_button.invoke()
+        assert math.isclose(panel.zoom, native_zoom)
+        assert "Ayrıntı sınırı" not in panel.satellite_hint.get()
     finally:
         root.destroy()
 
@@ -81,3 +109,29 @@ def test_indexed_pack_shares_images_and_culls_viewport(tmp_path):
 def test_index_cannot_reference_outside_pack(tmp_path):
     (tmp_path / "tile-index.json").write_text(json.dumps([[1, 0, 0, "../../outside.png"]]), "utf-8")
     assert SatelliteTiles(tmp_path / "tiles").tiles == []
+
+
+def test_local_detail_and_corrupt_tile_fallback(tmp_path):
+    lon, lat = 29.242599, 40.881391
+    paths = []
+    for level in (12, 14):
+        x = int((lon + 180) / 360 * 2**level)
+        y = int(tile_y(lat, level))
+        path = tmp_path / str(level) / str(x) / f"{y}.jpg"
+        path.parent.mkdir(parents=True)
+        Image.new("RGB", (256, 256), "blue").save(path)
+        paths.append(path)
+    tiles = SatelliteTiles(tmp_path)
+    assert tiles.detail_at(lon, lat) == 14
+    assert tiles.detail_at(43, 38) is None
+    assert tiles.native_scale_at(43, 38) is None
+    paths[1].write_bytes(b"interrupted image download")
+    assert SatelliteTiles(tmp_path).detail_at(lon, lat) == 12
+
+
+def test_scale_bar_fits_from_country_to_street_zoom():
+    for pixels_per_km in (0.1, 1, 10, 500, 1500, 10000):
+        distance, length = scale_distance(pixels_per_km)
+        assert 50 <= length <= 130
+        assert math.isclose(distance * pixels_per_km, length)
+    assert scale_distance(1500)[0] < 1  # Metres, not an overflowing one-kilometre bar.

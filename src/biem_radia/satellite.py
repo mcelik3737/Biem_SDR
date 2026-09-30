@@ -71,6 +71,26 @@ class SatelliteTiles:
             for z, tiles in self.by_level.items()
         }
 
+    def detail_at(self, lon: float, lat: float) -> int | None:
+        """Finest readable local tile at this point (not the pack's global maximum)."""
+        for z in sorted(self.by_level, reverse=True):
+            x = math.floor((lon + 180) / 360 * 2**z)
+            y = math.floor(tile_y(lat, z))
+            path = self.by_level[z].get((x, y))
+            if path is not None:
+                try:
+                    self.load(path)
+                    return z
+                except (OSError, ValueError):
+                    continue
+        return None
+
+    def native_scale_at(self, lon: float, lat: float) -> float | None:
+        level = self.detail_at(lon, lat)
+        if level is None:
+            return None
+        return 256 * 2**level / (360 * math.cos(math.radians(39)))
+
     def visible_tiles(self, panel, desired):
         scale = panel.scale()
         cosine = math.cos(math.radians(39))

@@ -43,3 +43,5 @@ Yeni paketi görmek için Radia yeniden açılır; Harita listesinden **Türkiye
 ## 30 Eylül 2026 güncellemesi
 
 Yukarıdaki Google/9 katman notları geçmiş entegrasyon kaydıdır. Bu paketler yeni yol ve uydu haritaları doğrulandıktan sonra etkin projeden çıkarılıp yerel arşive taşındı. Güncel paketler ve geri yükleme adımları [yedek notunda](BACKUP_2026-09-30.md), görsel kullanım [dokunmatik konsol notunda](TOUCH_CONSOLE_2026-09-30.md).
+
+Harita katmanı artık **Sokak / Uydu** düğmeleriyle seçilir. İstanbul uydu ayrıntısı, uygun yakınlık ve metre ölçeği için [30 Eylül uydu iyileştirme notuna](maps/SATELLITE_DETAIL_2026-09-30.md) bakın. Önceki genel 8192× yakınlaştırma açıklaması uydu modunda yerel ayrıntıya bağlı sınıra bırakılmıştır.
