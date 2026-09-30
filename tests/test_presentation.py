@@ -29,6 +29,12 @@ def test_presentation_keeps_config_and_live_telemetry(tmp_path):
         assert str(view.state.cget("textvariable")) == str(card.state)
         assert str(view.detail.cget("textvariable")) == str(card.details)
         assert "KAYIT" in card.state.get()
+        card.telemetry({"level": -42.5, "active": True, "rf_dbfs": -42.5, "rf_dbm": -76.2})
+        view.update()
+        assert str(view.power.cget("textvariable")) == str(card.rf_power)
+        assert "-76.2 dBm" in card.rf_power.get()
+        card.telemetry({"level": -42.5, "active": True, "rf_dbfs": -42.5, "rf_dbm": None})
+        assert "kalibrasyon gerekli" in card.rf_power.get()
         card.telemetry(
             {"level": -42.5, "active": True, "peak_hz": 427502000, "peak_offset_hz": 2000}
         )
@@ -59,6 +65,7 @@ def test_presentation_keeps_config_and_live_telemetry(tmp_path):
         assert card.value() == configured
         card.telemetry(None)
         assert card.peak.get() == "Tepe: — MHz\nΔ — kHz"
+        assert card.rf_power.get() == "Anten: — dBm\nRF: — dBFS"
         for tab in app.tabs.tabs():
             app.tabs.select(tab)
             root.update()

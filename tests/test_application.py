@@ -52,6 +52,11 @@ def test_archive_displays_code_and_distinguishes_physical_slot_from_decoder_lane
         assert app.calls.set("unknown", "slot") == "Doğrulanmadı"
         assert app.calls.set("p25", "code") == "NAC ABC"
         assert app.calls.set("nxdn", "code") == "RAN 3"
+        assert app.calls.set("repeater", "power") == "—"
+        with app.archive.connect() as db:
+            db.execute("UPDATE calls SET rf_peak_dbfs=-22.4,rf_peak_dbm=-68.5 WHERE id='repeater'")
+        app.refresh_archive()
+        assert app.calls.set("repeater", "power") == "-68.5 dBm"
         app.search_slot.set("1")
         app.refresh_archive()
         assert not app.calls.get_children()
@@ -89,9 +94,13 @@ def test_iq_to_archive_and_error_finalization(tmp_path, monkeypatch):
     assert len(calls) == 1 and calls[0]["end_reason"] == "error"
     assert calls[0]["duration"] > 0.8
     assert archive.audio_path(calls[0]["id"]).is_file()
+    assert -20 < calls[0]["rf_peak_dbfs"] < -10
+    assert calls[0]["rf_peak_dbm"] is None
+    assert "dBFS" in calls[0]["path"]
     messages = list(receiver.messages.queue)
     levels = [item for item in messages if item["kind"] == "levels"]
     assert levels and any(item["channels"][0]["peak_hz"] is not None for item in levels)
+    assert all(item["channels"][0]["rf_dbm"] is None for item in levels)
 
 
 def test_usb_queue_overflow_is_reported_instead_of_silent_loss():

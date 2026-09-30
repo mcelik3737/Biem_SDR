@@ -36,10 +36,24 @@ class ChannelPresentation:
         self.status.pack(fill="x", pady=(6, 3))
         self.more = tk.Frame(self.summary)
         self.more.pack(fill="x", pady=3)
+        self.power_row = tk.Frame(self.more)
+        self.power_row.pack(fill="x")
         self.peak = tk.Label(
-            self.more, textvariable=card.peak, anchor="w", justify="left", font=("Consolas", 10)
+            self.power_row,
+            textvariable=card.peak,
+            anchor="w",
+            justify="left",
+            font=("Consolas", 10),
         )
-        self.peak.pack(fill="x")
+        self.peak.pack(side="left", fill="x", expand=True)
+        self.power = tk.Label(
+            self.power_row,
+            textvariable=card.rf_power,
+            anchor="e",
+            justify="right",
+            font=("Segoe UI", 9),
+        )
+        self.power.pack(side="right")
         self.detail = tk.Label(
             self.more, textvariable=card.details, anchor="w", justify="left", font=("Segoe UI", 10)
         )
@@ -174,7 +188,7 @@ class ChannelPresentation:
             style_name, background=background, bordercolor=t["line"], relief="solid", borderwidth=1
         )
         c.frame.configure(style=style_name, padding=8 if self.compact else 16, text="")
-        for frame in (self.summary, self.head, self.more, self.actions):
+        for frame in (self.summary, self.head, self.more, self.actions, self.power_row):
             frame.configure(bg=background)
         for label in (
             self.name,
@@ -182,6 +196,7 @@ class ChannelPresentation:
             self.frequency,
             self.status,
             self.peak,
+            self.power,
             self.detail,
             self.state,
         ):
@@ -192,6 +207,7 @@ class ChannelPresentation:
         )
         self.status.configure(text="● " + text, fg=t[tone])
         self.peak.configure(fg=c.peak_color if c.peak_color != "#5c6e83" else t["muted"])
+        self.power.configure(fg=t["muted"], wraplength=max(110, (c.frame.winfo_width() - 35) // 2))
         self.detail.configure(fg=t["muted"], wraplength=max(150, c.frame.winfo_width() - 35))
         self.state.configure(fg=t["muted"])
         selected = app.receiver.monitor.selected == c.name.get()

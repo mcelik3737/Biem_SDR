@@ -16,6 +16,7 @@ from scipy import signal
 
 from .filenames import available_path, recording_name
 from .models import SAMPLE_RATE
+from .rf_power import RFPowerMeter
 
 
 class TetraBackend:
@@ -28,6 +29,7 @@ class TetraBackend:
         self.sos = np.asarray(signal.butter(8, 12500, fs=SAMPLE_RATE, output="sos"))
         self.state = np.zeros((len(self.sos), 2), dtype=np.complex128)
         self.completed = 0
+        self.rf_power: RFPowerMeter | None = None
         self.data = "TETRA • senkron bekleniyor • RF doğrulaması gerekli"
         self.events: queue.Queue = queue.Queue(maxsize=300)
         self.directory = archive.root / "tetra-sessions" / uuid.uuid4().hex
@@ -147,6 +149,7 @@ class TetraBackend:
                 )
                 call["chunks"].append(pcm)
                 call["last"] = now
+                call["last_utc"] = time.time()
                 if len(call["chunks"]) >= 1500:  # 1500 * 60 ms = exactly 90 seconds.
                     self._finish(slot, "max_duration")
                     self.cooldowns[slot] = now + 2
@@ -174,6 +177,14 @@ class TetraBackend:
         filtered, self.state = signal.sosfilt(self.sos, mixed, zi=self.state)
         narrow = filtered[(-self.position) % 10 :: 10]
         self.position += len(iq)
+        level = (
+            float(10 * np.log10(max(float(np.mean(abs(narrow) ** 2)), 1e-12)))
+            if len(narrow)
+            else -120
+        )
+        meter = getattr(self, "rf_power", None)
+        if meter is not None:
+            meter.observe(level, len(iq) / SAMPLE_RATE)
         assert self.process.stdin is not None
         self.process.stdin.write(narrow.astype("<c8").tobytes())
         self.process.stdin.flush()
@@ -183,12 +194,8 @@ class TetraBackend:
             call = self.calls[slot]
             if time.monotonic() - call["last"] > 0.8:
                 self._finish(slot)
-        level = (
-            float(10 * np.log10(max(float(np.mean(abs(narrow) ** 2)), 1e-12)))
-            if len(narrow)
-            else -120
-        )
         return {
+            **(meter.latest if meter is not None else {}),
             "name": self.channel.name,
             "level": round(level, 1),
             "active": bool(self.calls),
@@ -208,14 +215,24 @@ class TetraBackend:
         duration = len(pcm) / 16000
         directory = self.archive.root / "recordings" / started.astimezone().strftime("%Y-%m-%d")
         directory.mkdir(parents=True, exist_ok=True)
-        path = available_path(directory, recording_name("TETRA", started, duration))
+        meter = getattr(self, "rf_power", None)
+        power = (
+            meter.summary(
+                started.timestamp() - 0.06,
+                call.get("last_utc", started.timestamp() + duration),
+                timing="host_audio_window",
+            )
+            if meter is not None
+            else {}
+        )
+        path = available_path(directory, recording_name("TETRA", started, duration, power=power))
         with wave.open(str(path), "wb") as wav:
             wav.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
             wav.writeframes(pcm)
         path = self.archive.protect_file(path)
         with self.archive.connect() as db:
             db.execute(
-                "INSERT INTO calls(id,channel,frequency_hz,started_utc,duration,path,source,end_reason,system,color_code,protocol_slot,timing_basis) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO calls(id,channel,frequency_hz,started_utc,duration,path,source,end_reason,system,color_code,protocol_slot,timing_basis,rf_peak_dbfs,rf_peak_dbm,rf_power_info) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     uuid.uuid4().hex,
                     self.channel.name,
@@ -229,6 +246,9 @@ class TetraBackend:
                     self.cc,
                     slot,
                     "host_first_audio",
+                    power.get("rf_peak_dbfs"),
+                    power.get("rf_peak_dbm"),
+                    power.get("rf_power_info"),
                 ),
             )
         self.completed += 1

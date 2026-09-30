@@ -1,10 +1,15 @@
 from datetime import datetime
 from pathlib import Path
 
+from .rf_power import power_suffix
 
-def recording_name(mode: str, started: datetime, duration: float, radio=None, group=None) -> str:
+
+def recording_name(
+    mode: str, started: datetime, duration: float, radio=None, group=None, *, power=None
+) -> str:
     stamp = started.astimezone().strftime("%Y-%m-%d_%H_%M_%S")
     length = f"{duration:.2f}sn"
+    length += power_suffix(power)
     if mode == "NFM":
         return f"analog_{stamp}_{length}.wav"
 

@@ -247,6 +247,9 @@ def test_engine_starts_auto_probes_before_usb_and_closes_on_error(tmp_path, monk
         def __init__(self, *args):
             actions.append("probe")
             self.channel = args[1]
+            self.recorder = SimpleNamespace(channel=self.channel)
+            self.dmr = SimpleNamespace(importer=SimpleNamespace(channel=self.channel))
+            self.tetra = SimpleNamespace(channel=self.channel)
 
         def feed(self, iq):
             actions.append("feed")

@@ -10,6 +10,7 @@ import numpy as np
 
 from .filenames import available_path, recording_name
 from .models import AUDIO_RATE, Channel
+from .rf_power import RFPowerMeter
 from .storage import Archive
 
 
@@ -45,14 +46,21 @@ class CallRecorder:
         self.call_id = ""
         self.started = epoch
         self.completed = 0
+        self.rf_power: RFPowerMeter | None = None
 
     @property
     def active(self) -> bool:
         return self.writer is not None
 
-    def feed(self, audio: np.ndarray, level: float):
+    def feed(self, audio: np.ndarray, level: float, *, rf_level: float | None = None):
         if not len(audio):
             return
+        if self.rf_power is not None:
+            self.rf_power.observe(
+                level if rf_level is None else rf_level,
+                len(audio) / AUDIO_RATE,
+                end=self.epoch.timestamp() + (self.total + len(audio)) / AUDIO_RATE,
+            )
         while len(audio):
             if self.cooldown:
                 skipped = min(len(audio), self.cooldown)
@@ -120,16 +128,24 @@ class CallRecorder:
         self.writer.close()
         self.writer = None
         assert self.pending is not None
+        power = (
+            self.rf_power.summary(
+                self.started.timestamp(), self.started.timestamp() + self.written / AUDIO_RATE
+            )
+            if self.rf_power is not None
+            else {}
+        )
         final = available_path(
-            self.pending.parent, recording_name("NFM", self.started, self.written / AUDIO_RATE)
+            self.pending.parent,
+            recording_name("NFM", self.started, self.written / AUDIO_RATE, power=power),
         )
         self.pending.rename(final)
         final = self.archive.protect_file(final)
         # If database insertion fails, retain the WAV for manual recovery.
         with self.archive.connect() as db:
             db.execute(
-                """INSERT INTO calls(id,channel,frequency_hz,started_utc,duration,path,source,end_reason)
-                          VALUES(?,?,?,?,?,?,?,?)""",
+                """INSERT INTO calls(id,channel,frequency_hz,started_utc,duration,path,source,end_reason,rf_peak_dbfs,rf_peak_dbm,rf_power_info)
+                          VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     self.call_id,
                     self.channel.name,
@@ -139,6 +155,9 @@ class CallRecorder:
                     str(final.relative_to(self.archive.root)),
                     self.source,
                     reason,
+                    power.get("rf_peak_dbfs"),
+                    power.get("rf_peak_dbm"),
+                    power.get("rf_power_info"),
                 ),
             )
         self.completed += 1

@@ -120,3 +120,26 @@ görüldü. Düzeltmeden sonraki tam çalışmada 134 test başarılı.
 Gerçek oturumun 10:24 ve 10:30 çağrılarına ait loglar CC 1 / çözücü slotu 1
 olarak eşleşti. Yedek sonrası sadece bu iki kaydın decoder_slot alanı tamamlandı;
 fiziksel slot tahmin edilmedi. DMR.md içinde gerekçe ve yedek yolları var.
+
+## 2026-09-30 RF güç ölçümü ve kayıt maksimumu
+
+Kanal kartında kaymanın yanında RF seviyesi, arşiv sütunu, yeni dosya adı eki ve
+SQLite güç alanları eklendi. Anten dBm değeri ancak dış referansla kalibrasyon ve
+aynı alıcı koşulları eşleştiğinde yaklaşık olarak veriliyor; kalibrasyonsuz dBFS
+asla dBm diye etiketlenmiyor. Ayrıntı ve sınırlamalar: RF_POWER.md.
+
+Check-Radia.ps1: Ruff, biçim kontrolü, ty, basedpyright ve **158 testin tamamı**
+tek çalışmada geçti (Python 3.14.6; 40,17 saniye; toplam kapsam %78).
+`python -m uv build` wheel/sdist üretti. Donanım açmayan testlerde 90/2 saniye
+sınırı, kalibrasyon/gain/AGC, eski DB şeması, dijital slotlar, güç alanları ve
+dosya/DB tutarlılığı doğrulandı. Canlı RF ve referansla mutlak dBm doğruluğu
+henüz doğrulanmadı. Önce kaynak ve SQLite yedeği alındı:
+`D:\Projects\Biem\_SDR_Archives\2026-09-30\before-rf-power`.
+
+Commit kancasının ikinci tam koşusunda 157 test geçti; kalan GUI testi Tk
+oluşturulurken `invalid command name tcl_findLibrary` verdi. Bu makinenin önceki
+harita çalışmasında da görülen aralıklı Tcl başlatma hatasıdır; uygulama koduna
+girmeden oluştu. Tam 158 testin yeşil ilk koşusu korunmuştur. Hatalı GUI testi
+ayrı Python sürecinde yeniden geçti (4,43 saniye); commit sırasında yalnız
+kancadaki tekrar pytest adımı atlandı. Ruff/format/ty/basedpyright kancaları
+atlandı sayılmaz ve yeniden çalıştırıldı.

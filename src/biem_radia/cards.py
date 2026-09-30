@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from .models import Channel
+from .rf_power import live_power_text
 from .signal_follow import GREEN_RANGE_HZ
 from .tones import CTCSS, DCS
 
@@ -26,6 +27,7 @@ class ChannelCard:
         self.freq = tk.StringVar()
         self.peak = tk.StringVar(value="Tepe: — MHz\nΔ — kHz")
         self.peak_color = "#5c6e83"
+        self.rf_power = tk.StringVar(value=live_power_text(None))
         self.follow_signal = tk.BooleanVar(value=True)
         self.code = tk.StringVar()
         self.tone_mode = tk.StringVar(value="CSQ")
@@ -121,6 +123,8 @@ class ChannelCard:
             self.details.set("Deneysel çözücü • gerçek RF kabul testi bekliyor")
 
     def load(self, channel):
+        self.rf_power.set(live_power_text(None))
+        self.latest_state = None
         self.peak.set("Tepe: — MHz\nΔ — kHz")
         self.peak_color = "#5c6e83"
         self.channel = channel
@@ -182,6 +186,7 @@ class ChannelCard:
 
     def telemetry(self, state):
         self.latest_state = state
+        self.rf_power.set(live_power_text(state))
         self.peak.set("Tepe: — MHz\nΔ — kHz")
         self.peak_color = "#5c6e83"
         if state is None:

@@ -9,12 +9,15 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
+
 from .auto_decode import AutoChannel
 from .dmr import DmrBackend, DmrDiscriminator
 from .dsp import FMDemodulator
 from .live_audio import LiveAudio
 from .models import SAMPLE_RATE, Channel, center_for
 from .recorder import CallRecorder
+from .rf_power import PowerCalibrations, PowerContext, RFPowerMeter, device_identity
 from .scanner import AutoScanGate, DmrScanGate, ScanGate, TetraScanGate
 from .signal_follow import SignalFollower
 from .signal_peak import PeakMonitor
@@ -186,6 +189,24 @@ class Receiver:
             analog = [c for c in channels if c.mode == "NFM"]
             recorders = [CallRecorder(self.archive, c, source_kind, epoch) for c in analog]
             demodulators = [FMDemodulator(c, center) for c in analog]
+            power_context = PowerContext(
+                device=device_identity(source, self.usb_index),
+                gain_db=getattr(source, "gain_db", None),
+                ppm=ppm,
+            )
+            calibrations = PowerCalibrations(self.archive.root)
+            if calibrations.error:
+                self.archive.event("WARNING", calibrations.error)
+            owners = [*recorders, *tetra, *(b.importer for _, b in digital.values())]
+            for auto_channel in automatic:
+                assert auto_channel.dmr is not None
+                assert auto_channel.recorder is not None and auto_channel.tetra is not None
+                owners.extend(
+                    [auto_channel.recorder, auto_channel.dmr.importer, auto_channel.tetra]
+                )
+            for owner in owners:
+                owner.rf_power = RFPowerMeter(owner.channel, power_context, calibrations)
+            power_settles_at = 0.0
             self.archive.event(
                 "INFO",
                 f"Alım başladı: {source_kind}, merkez {center}, PPM {ppm:+d}, kanallar {[c.name for c in channels]}",
@@ -214,7 +235,14 @@ class Receiver:
                 if isinstance(source, USBSource) and applied_settings != self.usb_settings:
                     applied_settings = self.usb_settings
                     self.publish("gain", text=source.set_gain(*applied_settings))
+                    power_context.gain_db = getattr(source, "gain_db", None)
+                    power_settles_at = time.monotonic() + 1.0
                 iq = self._read_source(source)
+                power_context.settling = time.monotonic() < power_settles_at
+                power_context.clipped = bool(
+                    np.any(np.abs(np.real(iq)) >= 127.5 / 128)
+                    or np.any(np.abs(np.imag(iq)) >= 127.5 / 128)
+                )
                 peaks.feed(iq)
                 update_due = time.monotonic() - last_update >= 0.2
                 measurements = {}
@@ -242,6 +270,8 @@ class Receiver:
                     states.append(backend_tetra.feed(channel_iq[backend_tetra.channel.name]))
                 for name, (discriminator, backend) in digital.items():
                     pcm, level = discriminator.process(channel_iq[name])
+                    assert backend.importer.rf_power is not None
+                    backend.importer.rf_power.observe(level, len(iq) / SAMPLE_RATE)
                     backend.feed(pcm)
                     for stream, samples, rate in getattr(backend, "audio_packets", []):
                         self.monitor.feed(
@@ -249,6 +279,7 @@ class Receiver:
                         )
                     states.append(
                         {
+                            **backend.importer.rf_power.latest,
                             "name": name,
                             "level": round(level, 1),
                             "active": False,
@@ -261,7 +292,9 @@ class Receiver:
                 for demod, recorder in zip(demodulators, recorders, strict=True):
                     audio, level = demod.process(channel_iq[recorder.channel.name])
                     recorder.feed(
-                        audio if demod.tone.open else audio * 0, level if demod.tone.open else -120
+                        audio if demod.tone.open else audio * 0,
+                        level if demod.tone.open else -120,
+                        rf_level=level,
                     )
                     if demod.tone.open and level >= recorder.channel.squelch_db:
                         self.monitor.feed(
@@ -269,6 +302,7 @@ class Receiver:
                         )
                     states.append(
                         {
+                            **(recorder.rf_power.latest if recorder.rf_power is not None else {}),
                             "name": recorder.channel.name,
                             "level": round(level, 1),
                             "active": recorder.active,

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from .detection import AnalogEvidence, ProtocolEvidence
 from .dmr import DmrBackend, DmrDiscriminator
 from .dsp import FMDemodulator
+from .models import SAMPLE_RATE
 from .recorder import CallRecorder
 from .tetra import TetraBackend
 
@@ -54,6 +55,9 @@ class AutoChannel:
     def feed(self, iq):
         assert self.dmr is not None and self.tetra is not None and self.recorder is not None
         pcm, level = self.discriminator.process(iq)
+        meter = getattr(self.dmr.importer, "rf_power", None)
+        if meter is not None:
+            meter.observe(level, len(iq) / SAMPLE_RATE)
         self.dmr.feed(pcm)
         tetra_state = self.tetra.feed(iq)
         audio, analog_level = self.fm.process(iq)
@@ -79,6 +83,7 @@ class AutoChannel:
         self.recorder.feed(
             audio if candidate else audio * 0,
             analog_level if allowed_analog else -120,
+            rf_level=analog_level,
         )
         self.mode = selected
         if self.monitor is not None:
@@ -118,6 +123,13 @@ class AutoChannel:
             else "Tür doğrulanmadı; analog kayıt açılmadı"
         )
         return {
+            **(
+                self.recorder.rf_power.latest
+                if selected == "NFM" and self.recorder.rf_power is not None
+                else meter.latest
+                if selected == "DMR" and meter is not None
+                else {k: v for k, v in tetra_state.items() if k.startswith("rf_")}
+            ),
             "name": self.channel.name,
             "level": round(max(level, tetra_state["level"]), 1),
             "active": self.recorder.active or tetra_state["active"],

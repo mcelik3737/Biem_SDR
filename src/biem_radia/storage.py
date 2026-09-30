@@ -43,6 +43,9 @@ class Archive:
                 "decoder_slot": "INTEGER",
                 "protocol_slot": "INTEGER",
                 "timing_basis": "TEXT NOT NULL DEFAULT 'sample_clock'",
+                "rf_peak_dbfs": "REAL",
+                "rf_peak_dbm": "REAL",
+                "rf_power_info": "TEXT",
             }.items():
                 if name not in columns:
                     db.execute(f"ALTER TABLE calls ADD COLUMN {name} {declaration}")
@@ -81,7 +84,9 @@ class Archive:
         started: datetime,
         duration: float,
         path: Path,
+        power: dict | None = None,
     ):
+        power = power or {}
         path = self.protect_file(path)
         radio = str(event.radio) if event.radio is not None else None
         target = str(event.target) if event.target is not None else None
@@ -92,8 +97,8 @@ class Archive:
                 (channel.system, radio, group),
             ).fetchone()
             db.execute(
-                """INSERT OR IGNORE INTO calls(id,channel,frequency_hz,started_utc,duration,path,source,end_reason,radio_id,group_id,slot,title,system,destination_id,call_type,color_code,timing_basis)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                """INSERT OR IGNORE INTO calls(id,channel,frequency_hz,started_utc,duration,path,source,end_reason,radio_id,group_id,slot,title,system,destination_id,call_type,color_code,timing_basis,rf_peak_dbfs,rf_peak_dbm,rf_power_info)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     call_id,
                     channel.name,
@@ -112,6 +117,9 @@ class Archive:
                     event.kind,
                     event.color_code,
                     "decoder_last_event_minus_audio",
+                    power.get("rf_peak_dbfs"),
+                    power.get("rf_peak_dbm"),
+                    power.get("rf_power_info"),
                 ),
             )
 

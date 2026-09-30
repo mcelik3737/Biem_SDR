@@ -20,6 +20,7 @@ from .digital_log import DigitalJournal
 from .filenames import available_path, recording_name
 from .live_audio import WavTap
 from .models import SAMPLE_RATE, Channel
+from .rf_power import RFPowerMeter
 from .storage import Archive
 
 BACKEND_PATH = Path("vendor/dsd-fme/package/dsd-fme-portable")
@@ -138,6 +139,7 @@ class DmrImporter:
         self.completed = 0
         self.seen: set[str] = set()
         self.last_metadata = "Senkron / çağrı bekleniyor"
+        self.rf_power: RFPowerMeter | None = None
         self.recording_check: Callable[[], bool] | None = None
 
     def scan(self) -> int:
@@ -246,6 +248,15 @@ class DmrImporter:
                     if db.execute("SELECT 1 FROM calls WHERE id=?", (call_id,)).fetchone():
                         continue
                 directory.mkdir(parents=True, exist_ok=True)
+                power = (
+                    self.rf_power.summary(
+                        started.timestamp(),
+                        started.timestamp() + duration,
+                        timing="decoder_estimated_window",
+                    )
+                    if self.rf_power is not None
+                    else {}
+                )
                 destination = available_path(
                     directory,
                     recording_name(
@@ -254,6 +265,7 @@ class DmrImporter:
                         duration,
                         event.radio,
                         event.target if event.kind == "group" else None,
+                        power=power,
                     ),
                 )
                 temporary = destination.with_suffix(".part")
@@ -261,7 +273,9 @@ class DmrImporter:
                     out.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
                     out.writeframes(part)
                 temporary.replace(destination)
-                self.archive.add_dmr(call_id, self.channel, event, started, duration, destination)
+                self.archive.add_dmr(
+                    call_id, self.channel, event, started, duration, destination, power
+                )
                 log_path = self.directory / "decoder.log"
                 if event.protocol == "DMR" and event.slot is None and log_path.exists():
                     lane = decoder_slot(log_path.read_text("utf-8", errors="replace"), event)

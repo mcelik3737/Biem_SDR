@@ -27,9 +27,11 @@ from .fmradio import FMRadio
 from .inbox import InboxPanel
 from .map_panel import MapPanel
 from .models import Channel
+from .power_calibration import show_power_calibration
 from .presentation import Presentation
 from .protection import read_audio
 from .repeater_settings import RepeaterSettingsPanel
+from .rf_power import peak_text
 from .spectrum import SpectrumPanel, is_admin
 from .storage import Archive
 
@@ -222,6 +224,11 @@ class RadiaApp:
         self.tabs.add(self.spectrum, text="  Spektrum / Yönetici  ")
         self.calibration = CalibrationPanel(self.settings_tab, self)
         self.calibration.pack(fill="x", pady=10)
+        ttk.Button(
+            self.settings_tab,
+            text="RF güç kalibrasyonu / dBm",
+            command=lambda: show_power_calibration(self),
+        ).pack(anchor="w", pady=8)
         about = ttk.Frame(self.tabs, padding=28)
         self.tabs.add(about, text="  BİEM  ")
         ttk.Label(about, image=self.logo).pack(anchor="w", pady=16)
@@ -375,7 +382,17 @@ class RadiaApp:
         ttk.Button(search, text="Sesi kes", command=playback.stop).pack(
             side="left", padx=8, pady=(16, 0)
         )
-        columns = ("time", "channel", "frequency", "duration", "source", "identity", "slot", "code")
+        columns = (
+            "time",
+            "channel",
+            "frequency",
+            "duration",
+            "source",
+            "identity",
+            "slot",
+            "code",
+            "power",
+        )
         self.calls = ttk.Treeview(archive_box, columns=columns, show="headings", height=6)
         for key, label, width in zip(
             columns,
@@ -388,8 +405,9 @@ class RadiaApp:
                 "ID / Grup",
                 "Slot",
                 "CC / NAC / RAN",
+                "Maks. RF (kanal)",
             ],
-            [155, 175, 100, 85, 130, 120, 150, 110],
+            [155, 175, 100, 85, 130, 120, 150, 110, 130],
             strict=True,
         ):
             self.calls.heading(key, text=label)
@@ -695,6 +713,7 @@ class RadiaApp:
                     identities,
                     slot_label,
                     code_label,
+                    peak_text(r),
                 ),
             )
         if selected and self.calls.exists(selected[0]):

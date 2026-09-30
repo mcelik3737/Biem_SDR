@@ -31,6 +31,7 @@ def migrate(archive: Archive, apply=False):
             row["duration"],
             row["radio_id"],
             row["group_id"],
+            power=dict(row),
         )
         if re.fullmatch(re.escape(Path(name).stem) + r"(?:_\d+)?\.wav", old.name):
             continue
