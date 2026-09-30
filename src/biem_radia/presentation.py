@@ -300,7 +300,7 @@ class Presentation:
         self.theme_button.pack(side="right", padx=(6, 0))
         self.settings_button = ttk.Button(header, text="⚙ Ayarlar", command=self.settings, width=10)
         self.settings_button.pack(side="right", padx=6)
-        self.stop = ttk.Button(header, text="■ Durdur", command=app.receiver.stop, width=10)
+        self.stop = ttk.Button(header, text="■ Durdur", command=app.stop_receivers, width=10)
         self.stop.pack(side="right", padx=6)
         self.start = ttk.Button(
             header, text="▶ Başlat", command=app.start, style="Primary.TButton", width=10
@@ -692,7 +692,7 @@ class Presentation:
             text="BM" if narrow else "OPERASYON", pady=8 if app.root.winfo_height() < 650 else 18
         )
         for index, (button, icon, caption, _) in enumerate(self.nav_items):
-            if narrow and index >= 4:
+            if narrow and index >= 4 and caption != "Hytera Ethernet":
                 button.pack_forget()
             else:
                 button.pack(fill="x", padx=6, pady=2)
@@ -766,4 +766,24 @@ class Presentation:
                     else f"{icon}   {caption}" + (f"  {count}" if count else "")
                 )
                 button.configure(text=text)
+            elif tab == str(self.app.repeater_panel):
+                label, color = self.app.repeater_panel.badge()
+                narrow = self.app.root.winfo_width() < 1100
+                # Bright colors remain legible on the dark navigation rail in both themes.
+                ink = {
+                    "green": "#59d9a1",
+                    "red": "#ff7d8d",
+                    "orange": "#ffb46b",
+                    "gray": "#a1a9b5",
+                }[color]
+                if tab == self.app.tabs.select():
+                    ink = self.colors[color]
+                button.configure(
+                    text=f"{icon} ●" if narrow else f"{icon}   {caption}\n     ● {label}",
+                    fg=ink,
+                    justify="left",
+                )
+                self.nav_menu.entryconfigure(
+                    self.nav_items.index((button, icon, caption, tab)), label=f"{caption} • {label}"
+                )
         self.after_id = self.app.root.after(250, self.update)

@@ -145,6 +145,8 @@ class DigitalLogPanel(ttk.Frame):
             return
         self.last_refresh = time.monotonic()
         paths = list(self.archive.root.glob("dmr-sessions/*/digital.jsonl"))
+        paths += list(self.archive.root.glob("hytera-sessions/*/digital.jsonl"))
+        paths += list(self.archive.root.glob("hytera-status/*.jsonl"))
         paths += list(self.archive.root.glob("dmr-sessions/*/auto-detection.jsonl"))
         paths += list(self.archive.root.glob("tetra-sessions/*/events.jsonl"))
         paths = sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)[:6]

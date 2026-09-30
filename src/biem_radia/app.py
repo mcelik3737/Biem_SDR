@@ -172,7 +172,7 @@ class RadiaApp:
         self.tabs.add(self.inbox, text="  Gelen Mesajlar  ")
         self.map_panel = MapPanel(self.tabs, self.archive)
         self.tabs.add(self.map_panel, text="  Harita  ")
-        self.repeater_panel = RepeaterSettingsPanel(self.tabs, self.archive.root)
+        self.repeater_panel = RepeaterSettingsPanel(self.tabs, self.archive.root, self.archive)
         self.tabs.add(self.repeater_panel, text="  Hytera Ethernet  ")
         live_controls = ttk.Frame(self.live_tab)
         live_controls.pack(fill="x")
@@ -261,7 +261,7 @@ class RadiaApp:
         ttk.Label(gain_row, textvariable=self.gain_status).pack(side="left", padx=10, pady=(16, 0))
         self.start_button = ttk.Button(live_controls, text="▶ Alımı başlat", command=self.start)
         self.start_button.pack(side="left", padx=(20, 6), pady=(16, 0))
-        self.stop_button = ttk.Button(live_controls, text="■ Durdur", command=self.receiver.stop)
+        self.stop_button = ttk.Button(live_controls, text="■ Durdur", command=self.stop_receivers)
         self.stop_button.pack(side="left", pady=(16, 0))
 
         scan_row = ttk.Frame(self.live_tab)
@@ -707,7 +707,7 @@ class RadiaApp:
                     .astimezone()
                     .strftime("%Y-%m-%d %H:%M:%S"),
                     r["title"] or r["channel"],
-                    f"{r['frequency_hz'] / 1e6:.5f}",
+                    f"{r['frequency_hz'] / 1e6:.5f}" if r["frequency_hz"] else "—",
                     f"{r['duration']:.2f} sn",
                     r["source"],
                     identities,
@@ -776,6 +776,7 @@ class RadiaApp:
         if not selected:
             return
         self.receiver.monitor.stop()
+        self.repeater_panel.receiver.monitor.stop()
         try:
             path = self.archive.audio_path(selected[0])
             with self.archive.connect() as db:
@@ -785,6 +786,10 @@ class RadiaApp:
             messagebox.showerror("Dinleme", str(exc))
 
     def poll(self):
+        self.repeater_panel.poll()
+        if self.repeater_panel.archive_changed:
+            self.repeater_panel.archive_changed = False
+            self.refresh_archive()
         self.map_panel.poll()
         self.digital_log.poll()
         self.inbox.poll()
@@ -853,18 +858,25 @@ class RadiaApp:
             and not self.receiver.running
             and not self.radio.running
             and not self.spectrum.worker.running
+            and not self.repeater_panel.running
+            and not self.repeater_panel.snmp.running
         ):
             playback.stop()
             self.root.destroy()
             return
         self.root.after(200, self.poll)
 
+    def stop_receivers(self):
+        self.receiver.stop()
+        self.repeater_panel.stop()
+
     def close(self):
         self.closing = True
         self.radio.stop()
         self.spectrum.worker.stop()
         self.status.set("Alıcı kapatılıyor ve kayıtlar tamamlanıyor…")
-        self.receiver.stop()
+        self.stop_receivers()
+        self.repeater_panel.shutdown()
 
 
 def main():

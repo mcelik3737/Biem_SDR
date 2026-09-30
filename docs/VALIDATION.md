@@ -143,3 +143,28 @@ girmeden oluştu. Tam 158 testin yeşil ilk koşusu korunmuştur. Hatalı GUI te
 ayrı Python sürecinde yeniden geçti (4,43 saniye); commit sırasında yalnız
 kancadaki tekrar pytest adımı atlandı. Ruff/format/ty/basedpyright kancaları
 atlandı sayılmaz ve yeniden çalıştırıldı.
+
+## 2026-09-30 Hytera Ethernet ve bağımsız SNMP durumu
+
+İki slot için IP Dispatch ses/kayıt alımı ve canlı dinleme eklendi. Önceki
+ham ağ yakalamasıyla 8 korumalı kayıt ve dosya/SQLite/slot eşleşmesi doğrulandı.
+Kullanıcı sesleri dinleyip işlemi başarılı buldu. Slot 2 gerçek ses testi bekliyor.
+
+Gerçek HR659 üzerinde salt okunur SNMP GET/UDP 161 ve Trap/UDP 162 doğrulandı.
+7 alarm alanı normal, ileri/yansıyan güç tanımsız (-1). Aktif tanımlı alarm yok.
+Üretici OID'si/birim belgesi olmayan ham veriye anlam atanmadı. Sol menüde
+`Röle var` ve durum/günlük penceresi gerçek uygulamada görsel olarak doğrulandı;
+ses alımı kapalıyken SNMP yanıtları devam etti. Fiziksel arıza oluşturulmadı.
+
+Check-Radia.ps1: Ruff, biçim, ty ve basedpyright başarılı. 168 test geçti;
+bir mevcut GUI testi uygulama kurulmadan önce Python 3.14 ortamında
+`ttk/altTheme.tcl` dosyasına erişim hatası verdi. Aynı test ayrı Python sürecinde
+geçti: `test_five_editable_cards_tones_and_radio_guard`. Yeni SNMP testleri
+GET-only kodlamayı, v1/v2c ve bozuk paketleri, kaynak filtrelemeyi, alarmı
+bilinmeyen değerin temizlememesini, zaman aşımını ve soketlerin bırakılmasını
+doğruladı. Ses durdurmanın SNMP'yi durdurmaması, uygulama kapanışının ikisini
+durdurması ayrıca test edildi. Wheel ve sdist üretildi.
+
+Yedek: `data/backups/snmp-before-20260930-160858`. Gerçek IP profili,
+telemetri ve günlükler yalnızca yerelde. Kullanım ve teknik kaynaklar:
+[HYTERA_ETHERNET.md](HYTERA_ETHERNET.md).
