@@ -1,0 +1,5 @@
+ChatGPT için tasarım teslimi — 12 Eylül 2026
+
+Önce BIEM_RADIA_GUNCEL_BRIF.md dosyasını yükleyin. Bölüm 21 sonunda doğrudan gönderilecek istek bulunur. Önceki HTML ve ekranlar tasarım referansıdır; çalışan Radia ekranı değildir. Logolar ve telsiz ikonu tasarımda kullanılabilir. ZIP açılamıyorsa bu dosyaları ayrı yükleyin.
+
+Paket gerçek ses, konum günlükleri, ayarlar veya harita karo arşivi içermez. Güncel harita özellikleri Markdown içinde açıklanmıştır. Sunum çevrimdışıdır; son müşteri sürümü değildir.

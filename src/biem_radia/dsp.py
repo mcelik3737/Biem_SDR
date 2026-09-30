@@ -4,6 +4,7 @@ import numpy as np
 from scipy import signal
 
 from .models import SAMPLE_RATE, Channel
+from .tones import ToneGate
 
 
 class FMDemodulator:
@@ -15,6 +16,7 @@ class FMDemodulator:
         self.position = 0
         self.if_position = 0
         self.previous = 0j
+        self.tone = ToneGate(channel.tone_mode, channel.tone_value)
         self.rf_sos = np.asarray(
             signal.butter(8, channel.bandwidth_hz / 2, fs=SAMPLE_RATE, output="sos")
         )
@@ -37,6 +39,7 @@ class FMDemodulator:
         previous = np.concatenate(([self.previous], narrow[:-1]))
         fm = np.angle(narrow * np.conj(previous))
         self.previous = narrow[-1]
+        self.tone.feed(fm * (48000 / (2 * np.pi)))
         deviation = 5000 if self.channel.spacing_hz == 25000 else 2500
         audio, self.audio_state = signal.sosfilt(
             self.audio_sos, fm * (48_000 / (2 * np.pi * deviation)), zi=self.audio_state

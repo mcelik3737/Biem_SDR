@@ -53,7 +53,7 @@ def test_two_slots_have_independent_ids_audio_and_scoped_aliases(tmp_path):
     assert len(archive.search("GÜVENLİK", slot=1, system="Plant A")) == 1
     assert not archive.search("Başka Tesis")
     assert len(archive.search("102", slot=2)) == 1
-    assert DmrImporter(archive, channel, session).scan() == 2  # re-import is DB-idempotent
+    assert DmrImporter(archive, channel, session).scan() == 0  # no duplicate WAV or DB row
     assert len(archive.search()) == 2
 
 
@@ -68,6 +68,34 @@ def test_private_destination_is_not_a_group_and_dmo_slot_is_unknown(tmp_path):
     assert call["slot"] is None
     assert call["call_type"] == "private"
     assert archive.search("55")
+
+
+def test_long_digital_call_has_90_second_parts_and_two_second_gaps(tmp_path):
+    from datetime import datetime
+
+    session = tmp_path / "session"
+    fixture_call(session)
+    path = next(session.glob("*.wav"))
+    pcm = np.arange(185 * 8000, dtype=np.int64).astype("<i2").tobytes()
+    with wave.open(str(path), "wb") as wav:
+        wav.setparams((1, 2, 8000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm)
+    archive = Archive(tmp_path / "archive")
+    channel = Channel("DMR", 427500000, mode="DMR")
+    importer = DmrImporter(archive, channel, session)
+    assert importer.scan() == 3
+    rows = sorted(archive.search(), key=lambda r: r["started_utc"])
+    assert [r["duration"] for r in rows] == [90, 90, 1]
+    origin = datetime.fromisoformat(rows[0]["started_utc"])
+    for row, offset in zip(rows, [0, 92, 184], strict=True):
+        assert (datetime.fromisoformat(row["started_utc"]) - origin).total_seconds() == offset
+        assert row["radio_id"] == "101" and row["slot"] == 1
+        with wave.open(str(archive.audio_path(row["id"])), "rb") as wav:
+            assert (
+                wav.readframes(wav.getnframes())
+                == pcm[offset * 16000 : int(offset + row["duration"]) * 16000]
+            )
+    assert DmrImporter(archive, channel, session).scan() == 0
 
 
 def test_missing_event_does_not_inherit_previous_call_identity(tmp_path):
@@ -150,3 +178,27 @@ def test_decoder_slot_requires_matching_simplex_call():
     assert decoder_slot(log.replace("Color Code=11", "Color Code=1"), event) is None
     assert decoder_slot(log.replace("MS/DM MODE/MONO", "BS"), event) is None
     assert decoder_slot(log + " SLOT 2 TGT=3411 SRC=3737 Group Call\n", event) is None
+
+
+@pytest.mark.parametrize("cc", [0, 1, 9, 11, 15])
+def test_zero_padded_color_code_preserves_decoder_lane_without_guessing_slot(tmp_path, cc):
+    from biem_radia.dmr import decoder_slot
+
+    session = tmp_path / "session"
+    fixture_call(session, radio=3737, target=3737, slot=None, cc=cc)
+    log = (
+        f"12:00:10 Sync: +DMR MS/DM MODE/MONO | Color Code={cc:02} | TLC\n"
+        " SLOT 1 TGT=3737 SRC=3737 Group Call\n"
+    )
+    (session / "decoder.log").write_text(log)
+    archive = Archive(tmp_path / "archive")
+    importer = DmrImporter(archive, Channel("Test", 424000000, mode="DMR"), session)
+    assert importer.scan() == 1
+    call = archive.search()[0]
+    assert call["color_code"] == cc
+    assert call["decoder_slot"] == 1
+    assert call["slot"] is None and call["protocol_slot"] is None
+    assert not archive.search(slot=1)  # a decoder lane must not pass a physical-slot filter
+    event = parse_event((session / "events.log").read_text())
+    assert event is not None
+    assert decoder_slot(log.replace("TLC", "CACH/Burst FEC ERR"), event) is None

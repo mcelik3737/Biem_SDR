@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .filenames import available_path, recording_name
 from .models import AUDIO_RATE, Channel
 from .storage import Archive
 
@@ -23,12 +24,17 @@ class CallRecorder:
         epoch: datetime,
         pre_seconds: float = 0.30,
         hang_seconds: float = 0.60,
-        max_seconds: float = 180,
+        max_seconds: float = 90,
+        pause_seconds: float = 2,
     ):
         self.archive, self.channel, self.source, self.epoch = archive, channel, source, epoch
         self.pre_samples = int(pre_seconds * AUDIO_RATE)
         self.hang_samples = int(hang_seconds * AUDIO_RATE)
         self.max_samples = int(max_seconds * AUDIO_RATE)
+        self.pause_samples = int(pause_seconds * AUDIO_RATE)
+        self.cooldown = 0
+        if self.max_samples <= 0 or self.pause_samples < 0:
+            raise ValueError("Invalid recording duration or pause")
         self.pre: deque[np.ndarray] = deque()
         self.pre_count = 0
         self.total = 0
@@ -47,29 +53,44 @@ class CallRecorder:
     def feed(self, audio: np.ndarray, level: float):
         if not len(audio):
             return
-        threshold = self.channel.squelch_db - (3 if self.active else 0)
-        opened = level >= threshold
-        if not self.active and opened:
-            self._start()
-        if self.writer is not None:
-            self._write(audio)
-            self.silence = 0 if opened else self.silence + len(audio)
-            if self.written >= self.max_samples:
-                self.finish("max_duration")
-            elif self.silence >= self.hang_samples:
-                self.finish("squelch")
-        else:
-            self.pre.append(audio.copy())
-            self.pre_count += len(audio)
-            while self.pre and self.pre_count > self.pre_samples:
-                excess = self.pre_count - self.pre_samples
-                first = self.pre.popleft()
-                if len(first) > excess:
-                    self.pre.appendleft(first[excess:])
-                    self.pre_count -= excess
-                else:
-                    self.pre_count -= len(first)
-        self.total += len(audio)
+        while len(audio):
+            if self.cooldown:
+                skipped = min(len(audio), self.cooldown)
+                self.cooldown -= skipped
+                self.total += skipped
+                audio = audio[skipped:]
+                continue
+            threshold = self.channel.squelch_db - (3 if self.active else 0)
+            opened = level >= threshold
+            if not self.active and opened:
+                self._start()
+            if self.writer is not None:
+                count = min(len(audio), self.max_samples - self.written)
+                self._write(audio[:count])
+                self.total += count
+                audio = audio[count:]
+                self.silence = 0 if opened else self.silence + count
+                if self.written >= self.max_samples:
+                    self.finish("max_duration")
+                    self.cooldown = self.pause_samples
+                    self.pre.clear()
+                    self.pre_count = 0
+                elif self.silence >= self.hang_samples:
+                    self.finish("squelch")
+            else:
+                self.pre.append(audio.copy())
+                self.pre_count += len(audio)
+                limit = min(self.pre_samples, self.max_samples)
+                while self.pre and self.pre_count > limit:
+                    excess = self.pre_count - limit
+                    first = self.pre.popleft()
+                    if len(first) > excess:
+                        self.pre.appendleft(first[excess:])
+                        self.pre_count -= excess
+                    else:
+                        self.pre_count -= len(first)
+                self.total += len(audio)
+                break
 
     def _start(self):
         self.started = self.epoch + timedelta(seconds=(self.total - self.pre_count) / AUDIO_RATE)
@@ -99,8 +120,11 @@ class CallRecorder:
         self.writer.close()
         self.writer = None
         assert self.pending is not None
-        final = self.pending.with_suffix("")
+        final = available_path(
+            self.pending.parent, recording_name("NFM", self.started, self.written / AUDIO_RATE)
+        )
         self.pending.rename(final)
+        final = self.archive.protect_file(final)
         # If database insertion fails, retain the WAV for manual recovery.
         with self.archive.connect() as db:
             db.execute(

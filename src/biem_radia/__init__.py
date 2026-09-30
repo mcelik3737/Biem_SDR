@@ -1,1 +1,1 @@
-"""BIEM Radia radio recording workstation."""
+"""BIEM Radio Integrated Solution recording workstation, model BM-ICC-08."""

@@ -12,6 +12,55 @@ from biem_radia.sources import USBSource
 from biem_radia.storage import Archive
 
 
+def test_archive_displays_code_and_distinguishes_physical_slot_from_decoder_lane(tmp_path):
+    from datetime import datetime, timezone
+
+    from biem_radia.dmr import DmrEvent
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = RadiaApp(root, tmp_path)
+        app.archive.protected = False  # metadata/display fixture; encryption has separate tests
+        stamp = datetime.now(timezone.utc)
+        path = app.archive.root / "test.wav"
+        path.write_bytes(b"fixture")
+        for identity, protocol, code, slot in (
+            ("simplex", "DMR", 1, None),
+            ("repeater", "DMR", 0, 2),
+            ("unknown", "DMR", 11, None),
+            ("p25", "P25", 0xABC, None),
+            ("nxdn", "NXDN", 3, None),
+        ):
+            event = DmrEvent(stamp, 3737, 3737, code, "group", slot, False, protocol)
+            app.archive.add_dmr(
+                identity,
+                Channel("Test", 424000000, mode="APCO25" if protocol == "P25" else protocol),
+                event,
+                stamp,
+                1,
+                path,
+            )
+        with app.archive.connect() as db:
+            db.execute("UPDATE calls SET decoder_slot=1 WHERE id='simplex'")
+        app.refresh_archive()
+        assert app.calls.set("simplex", "identity") == "3737 / 3737"
+        assert app.calls.set("simplex", "slot") == "1 (çözücü)"
+        assert app.calls.set("simplex", "code") == "CC 1"
+        assert app.calls.set("repeater", "slot") == "2"
+        assert app.calls.set("repeater", "code") == "CC 0"
+        assert app.calls.set("unknown", "slot") == "Doğrulanmadı"
+        assert app.calls.set("p25", "code") == "NAC ABC"
+        assert app.calls.set("nxdn", "code") == "RAN 3"
+        app.search_slot.set("1")
+        app.refresh_archive()
+        assert not app.calls.get_children()
+    finally:
+        for after_id in root.tk.splitlist(root.tk.call("after", "info")):
+            root.after_cancel(after_id)
+        root.destroy()
+
+
 def test_iq_to_archive_and_error_finalization(tmp_path, monkeypatch):
     class TestSource:
         closed = False
@@ -40,6 +89,9 @@ def test_iq_to_archive_and_error_finalization(tmp_path, monkeypatch):
     assert len(calls) == 1 and calls[0]["end_reason"] == "error"
     assert calls[0]["duration"] > 0.8
     assert archive.audio_path(calls[0]["id"]).is_file()
+    messages = list(receiver.messages.queue)
+    levels = [item for item in messages if item["kind"] == "levels"]
+    assert levels and any(item["channels"][0]["peak_hz"] is not None for item in levels)
 
 
 def test_usb_queue_overflow_is_reported_instead_of_silent_loss():
@@ -62,9 +114,10 @@ def test_desktop_settings_search_and_playback_path(tmp_path, monkeypatch):
     root = tk.Tk()
     root.withdraw()
     app = RadiaApp(root, tmp_path)
+    monkeypatch.setattr("biem_radia.app.is_admin", lambda: True)
     played = []
     monkeypatch.setattr(
-        "biem_radia.app.winsound.PlaySound", lambda path, flags: played.append(path)
+        "biem_radia.app.playback.play", lambda data, boost=False: played.append(data)
     )
     try:
         app.name.set("Güvenlik")
@@ -85,11 +138,58 @@ def test_desktop_settings_search_and_playback_path(tmp_path, monkeypatch):
         assert app.calls.get_children() == ("test",)
         app.calls.selection_set("test")
         app.play()
-        assert played == [str(sound_path)]
+        assert played == [sound_path.read_bytes()]
         app.search_text.set("olmayan kanal")
         app.refresh_archive()
         assert not app.calls.get_children()
     finally:
         for after_id in root.tk.splitlist(root.tk.call("after", "info")):
             root.after_cancel(after_id)
+        root.destroy()
+
+
+def test_five_editable_cards_tones_and_radio_guard(tmp_path, monkeypatch):
+    root = tk.Tk()
+    root.withdraw()
+    app = RadiaApp(root, tmp_path)
+    errors = []
+    monkeypatch.setattr(
+        "biem_radia.app.messagebox.showerror", lambda title, text: errors.append(text)
+    )
+    try:
+        for i, card in enumerate(app.cards[:5]):
+            card.name.set(f"Test {i}")
+            card.freq.set(str(440 + i))
+            card.enabled.set(True)
+        app.cards[0].tone_mode.set("CTCSS")
+        app.cards[0].tone.set("88.5")
+        app.cards[1].mode.set("DMR")
+        app.cards[1].code.set("11")
+        app.cards[2].mode.set("TETRA")
+        app.cards[2].code.set("32")
+        app.cards[3].mode.set("APCO25")
+        app.cards[3].code.set("659")
+        app.cards[4].mode.set("NXDN")
+        app.cards[4].code.set("40")
+        assert app.save_cards() and len(app.channels) == 5
+        assert app.channels[0].tone_value == "88.5"
+        assert [c.mode for c in app.channels] == ["NFM", "DMR", "TETRA", "APCO25", "NXDN"]
+
+        class Busy:
+            def is_alive(self):
+                return True
+
+        app.receiver.thread = Busy()
+        app.start_radio()
+        assert errors and not app.radio.running
+        app.receiver.thread = None
+        app.load_cards()
+        assert not app.cards[5].freq.get()
+        app.cards[0].telemetry({"level": -30, "active": True, "data": "ID 101", "completed": 1})
+        assert "KAYIT" in app.cards[0].state.get()
+        app.cards[0].telemetry(None)
+        assert app.cards[0].level.get() == 0 and "Sırası" in app.cards[0].state.get()
+    finally:
+        for token in root.tk.splitlist(root.tk.call("after", "info")):
+            root.after_cancel(token)
         root.destroy()

@@ -108,7 +108,9 @@ def test_stop_finalizes_active_call_and_noise_only_does_not_record(tmp_path):
 
 def test_max_duration_splits_continuous_carrier(tmp_path):
     archive = Archive(tmp_path)
-    recorder = CallRecorder(archive, Channel("A", 446006250), "USB", EPOCH, max_seconds=0.5)
+    recorder = CallRecorder(
+        archive, Channel("A", 446006250), "USB", EPOCH, max_seconds=0.5, pause_seconds=0
+    )
     for _ in range(12):
         recorder.feed(np.ones(1600) * 0.1, -30)
     recorder.finish("stopped")

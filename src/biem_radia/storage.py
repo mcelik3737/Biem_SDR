@@ -12,7 +12,8 @@ if TYPE_CHECKING:
 
 
 class Archive:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, protected: bool = False):
+        self.protected = protected
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self.database = self.root / "radia.sqlite3"
@@ -40,6 +41,7 @@ class Archive:
                 "call_type": "TEXT",
                 "color_code": "INTEGER",
                 "decoder_slot": "INTEGER",
+                "protocol_slot": "INTEGER",
                 "timing_basis": "TEXT NOT NULL DEFAULT 'sample_clock'",
             }.items():
                 if name not in columns:
@@ -80,6 +82,7 @@ class Archive:
         duration: float,
         path: Path,
     ):
+        path = self.protect_file(path)
         radio = str(event.radio) if event.radio is not None else None
         target = str(event.target) if event.target is not None else None
         group = target if event.kind == "group" else None
@@ -98,7 +101,7 @@ class Archive:
                     started.isoformat(),
                     duration,
                     str(path.relative_to(self.root)),
-                    "DMR/DSD-FME",
+                    f"{channel.mode}/DSD-FME",
                     "decoder_closed",
                     radio,
                     group,
@@ -148,9 +151,9 @@ class Archive:
             )
             parameters += [text] * 6
         if slot is not None:
-            if slot not in (1, 2):
-                raise ValueError("Slot 1 veya 2 olmalı.")
-            clauses.append("slot=?")
+            if slot not in (1, 2, 3, 4):
+                raise ValueError("Slot 1–4 olmalı.")
+            clauses.append("coalesce(protocol_slot,slot)=CAST(? AS INTEGER)")
             parameters.append(str(slot))
         if system:
             clauses.append("system=?")
@@ -179,3 +182,29 @@ class Archive:
         if not path.is_relative_to(self.root) or not path.is_file():
             raise ValueError("Ses dosyası bulunamadı veya geçersiz.")
         return path
+
+    def protect_file(self, path: Path) -> Path:
+        if not self.protected:
+            return path
+        from .protection import seal
+
+        path = path.resolve()
+        if not path.is_relative_to(self.root):
+            raise ValueError("Korunacak dosya arşiv dışında.")
+        destination = seal(path)
+        if destination != path:
+            with self.connect() as db:
+                db.execute(
+                    "UPDATE calls SET path=? WHERE path=?",
+                    (str(destination.relative_to(self.root)), str(path.relative_to(self.root))),
+                )
+            path.unlink()
+        return destination
+
+    def protect_existing(self) -> int:
+        """Only call while receiver processes are stopped, including external sessions."""
+        count = 0
+        for path in self.root.rglob("*.wav"):
+            self.protect_file(path)
+            count += 1
+        return count

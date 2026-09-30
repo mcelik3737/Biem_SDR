@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 python -m uv sync --locked
 if ($LASTEXITCODE -ne 0) { throw 'uv sync basarisiz. python -m pip install uv ile uv kurun.' }
@@ -10,4 +10,4 @@ if (-not (Test-Path (Join-Path $destination 'package\x64\rtlsdr.dll'))) {
     if ($archiveHash -ne '7EF33F1304647F65E5E0FDE43637A73D54F076E91E651A3CECC4F55A17FD9815') { throw 'RTL-SDR arsiv ozeti beklenen degerle uyusmuyor.' }
     Expand-Archive (Join-Path $destination 'Release.zip') (Join-Path $destination 'package')
 }
-Write-Host 'Hazir. Start-Radia.cmd ile uygulamayi acin.'
+Write-Host 'Hazir. Start-BM-ICC-08.cmd ile uygulamayi acin.'

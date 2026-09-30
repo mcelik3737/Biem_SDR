@@ -27,7 +27,15 @@ class RtlLibrary:
         self.lib.rtlsdr_get_device_count.restype = ct.c_uint32
         self.lib.rtlsdr_get_device_name.argtypes = [ct.c_uint32]
         self.lib.rtlsdr_get_device_name.restype = ct.c_char_p
+        self.lib.rtlsdr_get_device_usb_strings.argtypes = [
+            ct.c_uint32,
+            ct.c_char_p,
+            ct.c_char_p,
+            ct.c_char_p,
+        ]
         self.lib.rtlsdr_open.argtypes = [ct.POINTER(ct.c_void_p), ct.c_uint32]
+        self.lib.rtlsdr_get_freq_correction.argtypes = [ct.c_void_p]
+        self.lib.rtlsdr_get_freq_correction.restype = ct.c_int
         for name in ("rtlsdr_close", "rtlsdr_reset_buffer", "rtlsdr_cancel_async"):
             getattr(self.lib, name).argtypes = [ct.c_void_p]
         for name in ("rtlsdr_set_sample_rate", "rtlsdr_set_center_freq"):
@@ -39,6 +47,12 @@ class RtlLibrary:
         ):
             getattr(self.lib, name).argtypes = [ct.c_void_p, ct.c_int]
         self.lib.rtlsdr_get_tuner_gains.argtypes = [ct.c_void_p, ct.POINTER(ct.c_int)]
+        self.lib.rtlsdr_read_sync.argtypes = [
+            ct.c_void_p,
+            ct.c_void_p,
+            ct.c_int,
+            ct.POINTER(ct.c_int),
+        ]
         self.callback_type = ct.CFUNCTYPE(None, ct.POINTER(ct.c_ubyte), ct.c_uint32, ct.c_void_p)
         self.lib.rtlsdr_read_async.argtypes = [
             ct.c_void_p,
@@ -54,15 +68,46 @@ class RtlLibrary:
             for i in range(self.lib.rtlsdr_get_device_count())
         ]
 
+    def inventory(self) -> list[dict]:
+        result = []
+        for index, name in enumerate(self.devices()):
+            maker, product, serial = (ct.create_string_buffer(256) for _ in range(3))
+            code = self.lib.rtlsdr_get_device_usb_strings(index, maker, product, serial)
+            result.append(
+                dict(
+                    index=index,
+                    name=name,
+                    manufacturer=maker.value.decode(errors="replace") if code == 0 else "",
+                    product=product.value.decode(errors="replace") if code == 0 else "",
+                    serial=serial.value.decode(errors="replace") if code == 0 else "",
+                    connected=True,
+                )
+            )
+        return result
+
+    def close(self):
+        self.directory.close()
+
 
 class USBSource:
-    def __init__(self, dll: Path, center: int, index: int = 0, ppm: int = 0, gain_db: float = 19):
+    def __init__(
+        self,
+        dll: Path,
+        center: int,
+        index: int = 0,
+        ppm: int = 0,
+        gain_db: float = 19,
+        agc: bool = False,
+        synchronous: bool = False,
+    ):
         self.library = RtlLibrary(dll)
         self.handle = ct.c_void_p()
         self.queue: queue.Queue[bytes] = queue.Queue(maxsize=32)
         self.error: str | None = None
         self.thread: threading.Thread | None = None
         self.closed = False
+        self.synchronous = synchronous
+        self.tuning = (center, ppm, gain_db, agc)
         self.callback = self.library.callback_type(self._callback)
         if index >= len(self.library.devices()):
             raise RuntimeError("RTL-SDR bulunamadı. USB bağlantısını kontrol edin.")
@@ -84,17 +129,37 @@ class USBSource:
             self._check(
                 self.library.lib.rtlsdr_get_tuner_gains(self.handle, gains), "Kazanç listesi"
             )
-            gain = min(gains, key=lambda value: abs(value - gain_db * 10))
-            self._check(self.library.lib.rtlsdr_set_tuner_gain(self.handle, gain), "Tuner kazancı")
-            self.gain_db = gain / 10
-            if ppm:
-                self._check(self.library.lib.rtlsdr_set_freq_correction(self.handle, ppm), "PPM")
+            self.gains = list(gains)
+            self.set_gain(gain_db, agc)
+            self.apply_ppm(ppm)
             self._check(self.library.lib.rtlsdr_reset_buffer(self.handle), "USB tampon sıfırlama")
-            self.thread = threading.Thread(target=self._run, daemon=True)
-            self.thread.start()
+            if not synchronous:
+                self.thread = threading.Thread(target=self._run, daemon=True)
+                self.thread.start()
         except Exception:
             self.close()
             raise
+
+    def apply_ppm(self, ppm: int):
+        result = self.library.lib.rtlsdr_set_freq_correction(self.handle, ppm)
+        actual = self.library.lib.rtlsdr_get_freq_correction(self.handle)
+        # librtlsdr returns -2 when the requested PPM is already set (including 0).
+        if result != -2 or actual != ppm:
+            self._check(result, "PPM")
+        if actual != ppm:
+            raise RuntimeError(f"PPM doğrulanamadı: istenen {ppm}, sürücü {actual}")
+
+    def set_gain(self, gain_db: float, agc: bool = False):
+        self._check(
+            self.library.lib.rtlsdr_set_tuner_gain_mode(self.handle, 0 if agc else 1), "Tuner AGC"
+        )
+        if agc:
+            self.gain_db = None
+        else:
+            gain = min(self.gains, key=lambda value: abs(value - gain_db * 10))
+            self._check(self.library.lib.rtlsdr_set_tuner_gain(self.handle, gain), "Tuner kazancı")
+            self.gain_db = gain / 10
+        return "Tuner AGC açık" if agc else f"Uygulanan USB kazancı: {self.gain_db:g} dB"
 
     @staticmethod
     def _check(code: int, operation: str):
@@ -113,12 +178,38 @@ class USBSource:
             self.error = f"USB akışı sonlandı ({result})."
 
     def read(self) -> np.ndarray:
+        if self.synchronous:
+            raw = ct.create_string_buffer(32768)
+            count = ct.c_int()
+            self._check(
+                self.library.lib.rtlsdr_read_sync(self.handle, raw, len(raw), ct.byref(count)),
+                "USB senkron okuma",
+            )
+            if not 0 < count.value <= len(raw):
+                raise RuntimeError("USB boş veya geçersiz örnek bloğu döndürdü.")
+            return decode_iq(raw.raw[: count.value])
         if self.error:
             raise RuntimeError(self.error)
         try:
             return decode_iq(self.queue.get(timeout=3))
         except queue.Empty as exc:
             raise RuntimeError("USB cihazından 3 saniyedir veri alınamıyor.") from exc
+
+    def tune_sweep(self, center, ppm, gain, agc):
+        """Single worker, synchronous reads only: no pending asynchronous transfers."""
+        if not self.synchronous or self.closed:
+            raise RuntimeError("Hızlı ayarlama yalnız senkron spektrum kaynağında kullanılabilir.")
+        previous = self.tuning
+        changed = previous != (center, ppm, gain, agc)
+        if ppm != previous[1]:
+            self.apply_ppm(ppm)
+        if (gain, agc) != previous[2:]:
+            self.set_gain(gain, agc)
+        if center != previous[0]:
+            self._check(self.library.lib.rtlsdr_set_center_freq(self.handle, center), "Frekans")
+        self._check(self.library.lib.rtlsdr_reset_buffer(self.handle), "Spektrum tampon sıfırlama")
+        self.tuning = (center, ppm, gain, agc)
+        return changed
 
     def close(self):
         self.closed = True

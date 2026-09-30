@@ -1,10 +1,14 @@
-# BİEM Radia Dispatcher
+# BİEM Radio Integrated Solution — BM-ICC-08
+
+Güncel ürün adı budur. Eski `biem_radia` paket adı, `.radia` kayıt biçimi ve mevcut başlatıcılar geriye uyumluluk için korunur. Yeni başlatıcı: `Start-BM-ICC-08.cmd`; yönetici: `Start-BM-ICC-08-Admin.cmd`. Model adı kapasite doğrulaması değildir.
 
 Windows üzerinde RTL-SDR ile analog FM ve DMR alımı, konuşma kaydı ve yerel ses arşivi. Analog ses ve gerçek RF'den çözülen DMR sesinin anlaşılırlığı kullanıcı tarafından doğrulandı. Saha kabulü tamamlanmış kesintisiz kayıt sistemi değildir.
 
+**0.2.0:** Altı kanal kutusu, ayrı arşiv/ayar sekmeleri, üstte açılır FM RADIO, CTCSS/DCS/ters DCS, deneysel TETRA/APCO25/NXDN adaptörleri ve okunabilir ses dosyası adları eklendi. Her modun doğrulama durumu ve kullanım ayrıntıları [Kanal ve mod kılavuzunda](docs/CHANNELS_AND_MODES.md).
+
 ## Başlatma
 
-`D:\Projects\Biem\_SDR\Start-Radia.cmd` dosyasını çift tıklayın. SDR# aynı USB alıcıyı kullanıyorsa önce SDR# alımını durdurun. SDR# dosyaları ve sürücü kurulumu değiştirilmez.
+`D:\Projects\Biem\_SDR\Start-BM-ICC-08.cmd` dosyasını çift tıklayın. SDR# aynı USB alıcıyı kullanıyorsa önce SDR# alımını durdurun. SDR# dosyaları ve sürücü kurulumu değiştirilmez.
 
 Yeni kurulum için Python 3.12+ (bu PC'de 3.14, 64 bit), Tk ve uv gerekir:
 
@@ -13,7 +17,8 @@ cd D:\Projects\Biem\_SDR
 python -m pip install uv
 .\Setup-Radia.ps1
 .\Setup-DMR.ps1
-.\Start-Radia.cmd
+.\Setup-TETRA.ps1
+.\Start-BM-ICC-08.cmd
 ```
 
 Kurulum, RTL-SDR kullanıcı alanı kütüphanesini yalnızca projenin `vendor` klasörüne indirir; Windows USB sürücüsü kurmaz veya değiştirmez. Bu PC'nin mevcut USB sürücüsüyle donanım erişimi doğrulandı.

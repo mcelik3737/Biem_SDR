@@ -5,22 +5,29 @@ import math
 import queue
 import threading
 import time
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .auto_decode import AutoChannel
 from .dmr import DmrBackend, DmrDiscriminator
 from .dsp import FMDemodulator
 from .models import SAMPLE_RATE, Channel, center_for
 from .recorder import CallRecorder
-from .scanner import ScanGate
+from .scanner import AutoScanGate, DmrScanGate, ScanGate, TetraScanGate
+from .signal_follow import SignalFollower
+from .signal_peak import PeakMonitor
 from .sources import TCPSource, USBSource
 from .storage import Archive
+from .tetra import TetraBackend
 
 
 class Receiver:
     def __init__(self, archive: Archive):
         self.archive = archive
         self.stop_event = threading.Event()
+        self.usb_settings = (19.0, False)
+        self.usb_index = 0
         self.thread: threading.Thread | None = None
         self.messages: queue.Queue[dict] = queue.Queue(maxsize=200)
 
@@ -49,6 +56,8 @@ class Receiver:
         scan: bool = False,
         scan_dwell: float = 1.0,
         scan_release: float = 1.0,
+        usb_agc: bool = False,
+        usb_index: int = 0,
     ):
         if self.running:
             raise ValueError("Alım zaten çalışıyor.")
@@ -65,6 +74,8 @@ class Receiver:
         if source_kind not in ("USB", "rtl_tcp"):
             raise ValueError("Geçersiz kaynak.")
         self.stop_event.clear()
+        self.usb_settings = (usb_gain, usb_agc)
+        self.usb_index = usb_index
         self.thread = threading.Thread(
             target=self._scan if scan else self._run,
             args=(channels, dll, source_kind, host, port, ppm, scan_dwell, usb_gain, scan_release)
@@ -82,6 +93,8 @@ class Receiver:
         reason = "stopped"
         while not self.stop_event.is_set():
             channel = channels[index]
+            if channel.mode == "DMR":
+                channel = replace(channel, color_code=None)
             reason = self._run(
                 [channel],
                 dll,
@@ -91,7 +104,11 @@ class Receiver:
                 ppm,
                 center_for([channel]),
                 usb_gain,
-                ScanGate(channel.squelch_db, dwell, release),
+                (
+                    {"TETRA": TetraScanGate, "DMR": DmrScanGate, "AUTO": AutoScanGate}.get(
+                        channel.mode, ScanGate
+                    )
+                )(channel.squelch_db, dwell, release),
             )
             if reason == "error":
                 break
@@ -102,46 +119,102 @@ class Receiver:
         source = None
         recorders: list[CallRecorder] = []
         digital: dict[str, tuple[DmrDiscriminator, DmrBackend]] = {}
+        tetra = []
+        automatic = []
         reason = "stopped"
         try:
             self.publish("status", text="Alıcı açılıyor…")
+            self.publish("tuning", names=[c.name for c in channels])
             for channel in channels:
-                if channel.mode == "DMR":
+                if channel.mode == "AUTO":
+                    automatic.append(
+                        AutoChannel(
+                            self.archive, channel, center, source_kind, datetime.now(timezone.utc)
+                        )
+                    )
+                if channel.mode == "TETRA":
+                    tetra.append(TetraBackend(self.archive, channel, center))
+                if channel.mode in ("DMR", "APCO25", "NXDN"):
                     digital[channel.name] = (
                         DmrDiscriminator(channel, center),
                         DmrBackend(self.archive, channel, self.archive.root.parent),
                     )
+            applied_settings = self.usb_settings
             source = (
-                USBSource(dll, center, ppm=ppm, gain_db=usb_gain)
+                USBSource(
+                    dll,
+                    center,
+                    index=self.usb_index,
+                    ppm=ppm,
+                    gain_db=applied_settings[0],
+                    agc=applied_settings[1],
+                )
                 if source_kind == "USB"
                 else TCPSource(host, port, center, ppm)
             )
             # Discard tuner startup transients before starting any recording.
+            if isinstance(source, USBSource) and hasattr(source, "gain_db"):
+                self.publish(
+                    "gain",
+                    text="Tuner AGC açık"
+                    if applied_settings[1]
+                    else f"Uygulanan USB kazancı: {source.gain_db:g} dB",
+                )
             discarded = 0
             while discarded < SAMPLE_RATE // 4 and not self.stop_event.is_set():
                 discarded += len(source.read())
             epoch = datetime.now(timezone.utc)
+            for auto_channel in automatic:
+                if auto_channel.recorder is not None:
+                    auto_channel.recorder.epoch = epoch
             analog = [c for c in channels if c.mode == "NFM"]
             recorders = [CallRecorder(self.archive, c, source_kind, epoch) for c in analog]
             demodulators = [FMDemodulator(c, center) for c in analog]
             self.archive.event(
                 "INFO",
-                f"Alım başladı: {source_kind}, merkez {center}, kanallar {[c.name for c in channels]}",
+                f"Alım başladı: {source_kind}, merkez {center}, PPM {ppm:+d}, kanallar {[c.name for c in channels]}",
             )
             self.publish(
                 "status",
                 text=f"TARAMA • {channels[0].name} • {channels[0].frequency_hz / 1e6:.5f} MHz"
                 if gate is not None
-                else "ALIM HAZIR • DMR senkronu bekleniyor"
-                if digital
-                else "ALIM HAZIR • Analog FM",
+                else "ALIM HAZIR • " + ", ".join(dict.fromkeys(c.mode for c in channels)),
             )
             last_update = 0.0
+            peaks = PeakMonitor(channels, center)
+            followers = {c.name: SignalFollower(c, channels) for c in channels}
             while not self.stop_event.is_set():
+                if isinstance(source, USBSource) and applied_settings != self.usb_settings:
+                    applied_settings = self.usb_settings
+                    self.publish("gain", text=source.set_gain(*applied_settings))
                 iq = source.read()
-                states = []
+                peaks.feed(iq)
+                update_due = time.monotonic() - last_update >= 0.2
+                measurements = {}
+                if update_due:
+                    measurements = peaks.measure()
+                    for name, follower in followers.items():
+                        previous_offset = follower.offset
+                        follower.observe(peaks.axis, peaks.power, time.monotonic())
+                        if follower.offset != previous_offset:
+                            self.archive.event(
+                                "INFO",
+                                f"RF takip • {name} • "
+                                + (
+                                    "kilit bırakıldı"
+                                    if follower.offset is None
+                                    else f"kilit {follower.channel.frequency_hz + follower.offset:.0f} Hz • fark {follower.offset:+.0f} Hz"
+                                )
+                                + " • kanal frekansı ve PPM sabit",
+                            )
+                channel_iq = {name: follower.process(iq) for name, follower in followers.items()}
+                states: list[dict] = []
+                for auto_channel in automatic:
+                    states.append(auto_channel.feed(channel_iq[auto_channel.channel.name]))
+                for backend_tetra in tetra:
+                    states.append(backend_tetra.feed(channel_iq[backend_tetra.channel.name]))
                 for name, (discriminator, backend) in digital.items():
-                    pcm, level = discriminator.process(iq)
+                    pcm, level = discriminator.process(channel_iq[name])
                     backend.feed(pcm)
                     states.append(
                         {
@@ -149,31 +222,71 @@ class Receiver:
                             "level": round(level, 1),
                             "active": False,
                             "completed": backend.completed,
-                            "mode": "DMR",
+                            "mode": backend.channel.mode,
+                            "data": backend.importer.last_metadata,
                             "offset_hz": round(discriminator.offset_hz),
                         }
                     )
                 for demod, recorder in zip(demodulators, recorders, strict=True):
-                    audio, level = demod.process(iq)
-                    recorder.feed(audio, level)
+                    audio, level = demod.process(channel_iq[recorder.channel.name])
+                    recorder.feed(
+                        audio if demod.tone.open else audio * 0, level if demod.tone.open else -120
+                    )
                     states.append(
                         {
                             "name": recorder.channel.name,
                             "level": round(level, 1),
                             "active": recorder.active,
                             "completed": recorder.completed,
+                            "data": demod.tone.label,
+                            "mode": "NFM",
                         }
                     )
-                if time.monotonic() - last_update >= 0.2:
+                if update_due:
+                    for state in states:
+                        state.update(measurements[state["name"]])
+                        state.update(followers[state["name"]].telemetry())
                     self.publish("levels", channels=states)
                     last_update = time.monotonic()
                 if gate is not None:
                     was_held = gate.held
-                    move_on = gate.advance(states[0]["level"], len(iq) / SAMPLE_RATE)
+                    if isinstance(gate, AutoScanGate):
+                        move_on = gate.advance_auto(states[0], len(iq) / SAMPLE_RATE)
+                    elif isinstance(gate, TetraScanGate):
+                        state = states[0]
+                        move_on = gate.advance_tetra(
+                            state["level"],
+                            len(iq) / SAMPLE_RATE,
+                            state.get("voice", False),
+                            state.get("control_channel", False),
+                        )
+                        if move_on and gate.reason:
+                            self.archive.event(
+                                "INFO", f"{channels[0].name}: {gate.reason}; tarama devam ediyor"
+                            )
+                            self.publish(
+                                "status", text=f"{channels[0].name} • {gate.reason} • Sonraki kanal"
+                            )
+                    elif isinstance(gate, DmrScanGate):
+                        backend = digital[channels[0].name][1]
+                        journal = backend.journal
+                        cc = journal.cc if time.monotonic() - journal.sync_time < 0.8 else None
+                        move_on = gate.advance_dmr(states[0]["level"], len(iq) / SAMPLE_RATE, cc)
+                    else:
+                        move_on = gate.advance(states[0]["level"], len(iq) / SAMPLE_RATE)
                     if gate.held and not was_held:
+                        if isinstance(gate, DmrScanGate):
+                            digital[channels[0].name][1].importer.channel = replace(
+                                channels[0], color_code=gate.color_code
+                            )
                         self.publish(
                             "status",
-                            text=f"KANALDA BEKLİYOR • {channels[0].name} • Eşik {gate.threshold:g} dBFS",
+                            text=f"KANALDA BEKLİYOR • {channels[0].name} • Eşik {gate.threshold:g} dBFS"
+                            + (
+                                f" • DMR CC {gate.color_code} kilitlendi"
+                                if isinstance(gate, DmrScanGate)
+                                else ""
+                            ),
                         )
                     if move_on:
                         reason = "scan"
@@ -187,6 +300,18 @@ class Receiver:
             except Exception:
                 logging.exception("Cannot write event log")
         finally:
+            for auto_channel in automatic:
+                try:
+                    auto_channel.close(reason)
+                except Exception as exc:
+                    reason = "error"
+                    self.publish("error", text=str(exc))
+            for backend_tetra in tetra:
+                try:
+                    backend_tetra.close()
+                except Exception as exc:
+                    reason = "error"
+                    self.publish("error", text=f"TETRA kapanış hatası: {exc}")
             for _, backend in digital.values():
                 try:
                     backend.close()

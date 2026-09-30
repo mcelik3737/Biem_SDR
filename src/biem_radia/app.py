@@ -6,18 +6,32 @@ import logging
 import math
 import os
 import queue
+import sqlite3
 import tkinter as tk
 import wave
-import winsound
+import webbrowser
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-import numpy as np
+import sounddevice as sd
 
+from . import playback
+from .branding import MODEL, PRODUCT_NAME, WINDOW_TITLE
+from .calibration import CalibrationPanel
+from .cards import ChannelCard
+from .devices import DevicesPanel
+from .digital_log import DigitalLogPanel
 from .engine import Receiver
+from .fmradio import FMRadio
+from .inbox import InboxPanel
+from .map_panel import MapPanel
 from .models import Channel
+from .presentation import Presentation
+from .protection import read_audio
+from .repeater_settings import RepeaterSettingsPanel
+from .spectrum import SpectrumPanel, is_admin
 from .storage import Archive
 
 ROOT = Path.cwd()
@@ -26,8 +40,9 @@ ROOT = Path.cwd()
 class RadiaApp:
     def __init__(self, root: tk.Tk, project: Path):
         self.root, self.project = root, project
-        self.archive = Archive(project / "data")
+        self.archive = Archive(project / "data", protected=True)
         self.receiver = Receiver(self.archive)
+        self.radio = FMRadio()
         self.config_path = self.archive.root / "channels.json"
         self.channels = [Channel("PMR 01", 446_006_250, squelch_db=-48)]
         if self.config_path.exists():
@@ -39,55 +54,130 @@ class RadiaApp:
                 messagebox.showerror("Kanal ayarları", f"Ayar dosyası okunamadı: {exc}")
         self.last_count = -1
         self.closing = False
-        root.title("BİEM Radia • Dispatcher / FM + DMR")
-        root.geometry("1240x820")
-        root.minsize(1050, 700)
-        root.configure(bg="#101b2d")
+        root.title(WINDOW_TITLE)
+        root.geometry("1280x920")
+        root.minsize(1120, 760)
+        root.configure(bg="#f3f5f8")
         root.protocol("WM_DELETE_WINDOW", self.close)
         style = ttk.Style(root)
         style.theme_use("clam")
-        style.configure(".", font=("Segoe UI", 10), background="#17253b", foreground="#e5edf8")
-        style.configure("TFrame", background="#101b2d")
-        style.configure("TLabel", background="#101b2d")
-        style.configure("TLabelframe", background="#101b2d", bordercolor="#354761")
-        style.configure("TLabelframe.Label", background="#101b2d", foreground="#74d9cc")
+        style.configure(".", font=("Segoe UI", 10), background="#ffffff", foreground="#202b3a")
+        style.configure("TFrame", background="#f3f5f8")
+        style.configure("TLabel", background="#f3f5f8")
+        style.configure("TLabelframe", background="#f3f5f8", bordercolor="#d4dbe5")
+        style.configure("TLabelframe.Label", background="#f3f5f8", foreground="#246293")
         style.configure(
-            "TEntry", fieldbackground="#21334d", foreground="#ffffff", insertcolor="#ffffff"
+            "TEntry", fieldbackground="#ffffff", foreground="#202b3a", insertcolor="#202b3a"
         )
-        style.configure("TCombobox", fieldbackground="#21334d", foreground="#ffffff")
+        style.configure("TCombobox", fieldbackground="#ffffff", foreground="#202b3a")
         style.map(
             "TCombobox",
-            fieldbackground=[("readonly", "#21334d")],
-            foreground=[("readonly", "#ffffff")],
+            fieldbackground=[("readonly", "#ffffff")],
+            foreground=[("readonly", "#202b3a")],
         )
-        style.configure("TButton", padding=(12, 7), background="#294667")
-        style.map("TButton", background=[("active", "#326283")])
+        style.configure("TButton", padding=(12, 7), background="#e3eaf3")
+        style.map("TButton", background=[("active", "#d1e2f5")])
         style.configure(
             "Treeview",
-            background="#17253b",
-            fieldbackground="#17253b",
-            foreground="#e5edf8",
+            background="#ffffff",
+            fieldbackground="#ffffff",
+            foreground="#202b3a",
             rowheight=31,
         )
-        style.configure("Treeview.Heading", background="#233853", foreground="#b6c9e4", padding=7)
-        style.map("Treeview", background=[("selected", "#285f73")])
+        style.configure("Treeview.Heading", background="#e8edf4", foreground="#334155", padding=7)
+        style.map("Treeview", background=[("selected", "#cfe4fa")])
+        style.configure("TNotebook", background="#f3f5f8", borderwidth=0)
+        style.configure(
+            "TNotebook.Tab", background="#e8edf4", foreground="#202b3a", padding=(12, 8)
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", "#cfe4fa")],
+            foreground=[("selected", "#174b78")],
+        )
+        style.configure(
+            "Horizontal.TProgressbar", background="#2677b9", troughcolor="#ffffff", borderwidth=0
+        )
+        style.configure(
+            "TSpinbox", fieldbackground="#ffffff", foreground="#202b3a", insertcolor="#202b3a"
+        )
 
         outer = ttk.Frame(root, padding=22)
         outer.pack(fill="both", expand=True)
         header = ttk.Frame(outer)
         header.pack(fill="x")
-        ttk.Label(header, text="BİEM  /  RADIA", font=("Segoe UI", 24, "bold")).pack(side="left")
-        ttk.Label(header, text="DİSPATCHER   •   FM + DMR", foreground="#74d9cc").pack(side="right")
+        assets = Path(__file__).parent / "assets"
+        self.logo = tk.PhotoImage(master=root, file=str(assets / "biem-logo.png")).subsample(5, 5)
+        self.icon = tk.PhotoImage(master=root, file=str(assets / "biem-icon.png")).subsample(10, 10)
+        root.iconphoto(True, self.icon)
+        ttk.Label(header, image=self.logo).pack(side="left", padx=(0, 20))
+        ttk.Label(
+            header, text=f"Radio Integrated Solution  |  {MODEL}", font=("Segoe UI", 16, "bold")
+        ).pack(side="left")
+        ttk.Label(header, text="CANLI KANALLAR  /  KAYIT ARŞİVİ", foreground="#246293").pack(
+            side="right"
+        )
         self.status = tk.StringVar(value="Alıcı beklemede • Kayıt başlatılmadı")
         ttk.Label(
             outer,
             textvariable=self.status,
             font=("Segoe UI", 12),
-            foreground="#74d9cc",
+            foreground="#246293",
             padding=(0, 14),
         ).pack(anchor="w")
 
-        setup = ttk.LabelFrame(outer, text="ALICI VE KANALLAR", padding=12)
+        self.fm_panel = ttk.Frame(outer, padding=8)
+        ttk.Button(header, text="♫ FM RADIO ▾", command=self.toggle_radio).pack(
+            side="right", padx=18
+        )
+        self.fm_frequency = tk.StringVar(value="99.5")
+        self.fm_status = tk.StringVar(
+            value="88,5–108 MHz • 100 kHz adım • Ana alım açıkken bu alıcı kullanılamaz"
+        )
+        ttk.Label(self.fm_panel, text="FM RADIO / MHz").pack(side="left", padx=8)
+        ttk.Spinbox(
+            self.fm_panel,
+            from_=88.5,
+            to=108,
+            increment=0.1,
+            textvariable=self.fm_frequency,
+            width=8,
+        ).pack(side="left")
+        ttk.Button(self.fm_panel, text="▶ Dinle", command=self.start_radio).pack(
+            side="left", padx=8
+        )
+        ttk.Button(self.fm_panel, text="■ Kapat", command=self.radio.stop).pack(side="left")
+        ttk.Scale(
+            self.fm_panel,
+            from_=0,
+            to=1,
+            value=0.7,
+            command=lambda v: setattr(self.radio, "volume", float(v)),
+        ).pack(side="left", padx=8)
+        ttk.Label(self.fm_panel, textvariable=self.fm_status, wraplength=460).pack(
+            side="left", padx=8
+        )
+        self.tabs = ttk.Notebook(outer)
+        self.tabs.pack(fill="both", expand=True)
+        self.live_tab = ttk.Frame(self.tabs, padding=10)
+        self.archive_tab = ttk.Frame(self.tabs, padding=10)
+        self.settings_tab = ttk.Frame(self.tabs, padding=10)
+        self.tabs.add(self.live_tab, text="  Canlı Kanallar  ")
+        self.tabs.add(self.archive_tab, text="  Kayıt Arşivi  ")
+        self.tabs.add(self.settings_tab, text="  Alıcı / Gelişmiş Ayarlar  ")
+        self.digital_log = DigitalLogPanel(self.tabs, self.archive)
+        self.tabs.add(self.digital_log, text="  Dijital Veri Günlüğü  ")
+        self.inbox = InboxPanel(self.tabs, self.archive.root)
+        self.tabs.add(self.inbox, text="  Gelen Mesajlar  ")
+        self.map_panel = MapPanel(self.tabs, self.archive)
+        self.tabs.add(self.map_panel, text="  Harita  ")
+        self.repeater_panel = RepeaterSettingsPanel(self.tabs, self.archive.root)
+        self.tabs.add(self.repeater_panel, text="  Hytera Ethernet  ")
+        live_controls = ttk.Frame(self.live_tab)
+        live_controls.pack(fill="x")
+        setup = ttk.LabelFrame(
+            self.settings_tab, text="ALICI VE GELİŞMİŞ KANAL AYARLARI", padding=12
+        )
         setup.pack(fill="x")
         row = ttk.Frame(setup)
         row.pack(fill="x")
@@ -96,6 +186,7 @@ class RadiaApp:
         self.port = tk.StringVar(value="1234")
         self.ppm = tk.StringVar(value="0")
         self.usb_gain = tk.StringVar(value="19")
+        self.usb_agc = tk.StringVar(value="Manuel")
         self.receive_mode = tk.StringVar(value="Sabit")
         self.scan_dwell = tk.StringVar(value="1.0")
         self.scan_release = tk.StringVar(value="1.0")
@@ -106,6 +197,7 @@ class RadiaApp:
             "port": self.port,
             "ppm": self.ppm,
             "usb_gain": self.usb_gain,
+            "usb_agc": self.usb_agc,
             "receive_mode": self.receive_mode,
             "scan_dwell": self.scan_dwell,
             "scan_release": self.scan_release,
@@ -125,18 +217,55 @@ class RadiaApp:
         self._field(row, "Port", self.port, 7)
         self._field(row, "PPM düzeltme", self.ppm, 8)
         self._field(row, "USB kazanç / dB", self.usb_gain, 10)
-        self.start_button = ttk.Button(row, text="▶ Alımı başlat", command=self.start)
+        self.devices = DevicesPanel(self.tabs, self)
+        self.tabs.add(self.devices, text="  SDR Cihazları  ")
+        self.spectrum = SpectrumPanel(self.tabs, self)
+        self.tabs.add(self.spectrum, text="  Spektrum / Yönetici  ")
+        self.calibration = CalibrationPanel(self.settings_tab, self)
+        self.calibration.pack(fill="x", pady=10)
+        about = ttk.Frame(self.tabs, padding=28)
+        self.tabs.add(about, text="  BİEM  ")
+        ttk.Label(about, image=self.logo).pack(anchor="w", pady=16)
+        ttk.Label(about, text="BİEM Teknoloji Elektronik", font=("Segoe UI", 20, "bold")).pack(
+            anchor="w"
+        )
+        ttk.Label(
+            about,
+            text="Telsiz haberleşmesi • Raylı sistemler • DAS / RF kapsama\n\nGSM: +90 532 524 40 37\nOfis: +90 216 807 24 36 – 37\nE-posta: proje@biemelektronik.com\n\nBarbaros Mah. Begonya Sok. Batı Nida Kule No:1\nAtaşehir / İstanbul",
+            font=("Segoe UI", 11),
+            justify="left",
+        ).pack(anchor="w", pady=20)
+        ttk.Button(
+            about,
+            text="biemelektronik.com ↗",
+            command=lambda: webbrowser.open("https://biemelektronik.com/"),
+        ).pack(anchor="w")
+        ttk.Label(about, text=WINDOW_TITLE, foreground="#526174").pack(anchor="w", pady=28)
+        gain_row = ttk.Frame(self.live_tab)
+        gain_row.pack(fill="x", pady=8)
+        self._field(gain_row, "USB donanım kazancı / dB", self.usb_gain, 12)
+        self._field(gain_row, "Kazanç kontrolü", self.usb_agc, 14, ["Manuel", "Tuner AGC"])
+        ttk.Button(gain_row, text="+10 dB", command=self.boost_gain).pack(
+            side="left", padx=8, pady=(16, 0)
+        )
+        ttk.Button(gain_row, text="Kazancı uygula", command=self.apply_gain).pack(
+            side="left", pady=(16, 0)
+        )
+        self.gain_status = tk.StringVar(value="USB • Alım sırasında değiştirilebilir")
+        ttk.Label(gain_row, textvariable=self.gain_status).pack(side="left", padx=10, pady=(16, 0))
+        self.start_button = ttk.Button(live_controls, text="▶ Alımı başlat", command=self.start)
         self.start_button.pack(side="left", padx=(20, 6), pady=(16, 0))
-        self.stop_button = ttk.Button(row, text="■ Durdur", command=self.receiver.stop)
+        self.stop_button = ttk.Button(live_controls, text="■ Durdur", command=self.receiver.stop)
         self.stop_button.pack(side="left", pady=(16, 0))
 
-        scan_row = ttk.Frame(setup)
+        scan_row = ttk.Frame(self.live_tab)
         scan_row.pack(fill="x", pady=(8, 0))
         self._field(scan_row, "Alım biçimi", self.receive_mode, 12, ["Sabit", "Tarama"])
         self._field(scan_row, "Kanalı dinle / sn", self.scan_dwell, 12)
         self._field(scan_row, "Eşik altı bekle / sn", self.scan_release, 14)
         ttk.Label(
-            scan_row, text="Tarama: etkin kanallar • Eşik: kanalın Squelch / dBFS değeri"
+            scan_row,
+            text="Kayıt: 90 sn / 2 sn ara • TETRA: sessiz taşıyıcı 20 sn • DMR tarama: otomatik CC 0–15",
         ).pack(side="left", padx=12, pady=(16, 0))
 
         mode_row = ttk.Frame(setup)
@@ -145,7 +274,9 @@ class RadiaApp:
         self.system = tk.StringVar(value="Default")
         self.color_code = tk.StringVar()
         self.enabled = tk.BooleanVar(value=True)
-        self._field(mode_row, "Kanal modu", self.mode, 8, ["NFM", "DMR"])
+        self._field(
+            mode_row, "Kanal modu", self.mode, 8, ["NFM", "DMR", "TETRA", "APCO25", "NXDN", "AUTO"]
+        )
         self._field(mode_row, "Sistem / müşteri kapsamı", self.system, 22)
         self._field(mode_row, "Color code (boş = tümü)", self.color_code, 18)
         ttk.Button(mode_row, text="ID → İsim eşleştirme", command=self.alias_dialog).pack(
@@ -195,13 +326,37 @@ class RadiaApp:
             self.channel_table.selection_set(str(initial))
             self.select_channel()
         self.levels = tk.StringVar(
-            value="Tüm listedeki kanallar eşzamanlı alınır. Ayar değişikliği için alımı durdurun."
+            value="Sabit: bant içi eşzamanlı alım. Tarama: etkin kanallar sırayla alınır."
         )
-        ttk.Label(setup, textvariable=self.levels, foreground="#a7bbd4", padding=(0, 8)).pack(
+        ttk.Label(setup, textvariable=self.levels, foreground="#526174", padding=(0, 8)).pack(
             anchor="w"
         )
 
-        archive_box = ttk.LabelFrame(outer, text="KONUŞMA ARŞİVİ", padding=12)
+        ttk.Button(live_controls, text="Kanalları kaydet", command=self.save_cards).pack(
+            side="left", padx=10, pady=(16, 0)
+        )
+        card_view = ttk.Frame(self.live_tab)
+        card_view.pack(fill="both", expand=True, pady=(8, 0))
+        card_canvas = tk.Canvas(card_view, bg="#f3f5f8", highlightthickness=0)
+        card_scroll = ttk.Scrollbar(card_view, orient="vertical", command=card_canvas.yview)
+        card_canvas.configure(yscrollcommand=card_scroll.set)
+        card_scroll.pack(side="right", fill="y")
+        card_canvas.pack(side="left", fill="both", expand=True)
+        self.card_grid = ttk.Frame(card_canvas)
+        card_window = card_canvas.create_window((0, 0), window=self.card_grid, anchor="nw")
+        self.card_grid.bind(
+            "<Configure>", lambda e: card_canvas.configure(scrollregion=card_canvas.bbox("all"))
+        )
+        card_canvas.bind(
+            "<Configure>", lambda e: card_canvas.itemconfigure(card_window, width=e.width)
+        )
+        for col in range(3):
+            self.card_grid.columnconfigure(col, weight=1, uniform="cards")
+        for row in range(2):
+            self.card_grid.rowconfigure(row, weight=1)
+        self.cards = [ChannelCard(self.card_grid, i) for i in range(max(6, len(self.channels)))]
+        self.load_cards()
+        archive_box = ttk.LabelFrame(self.archive_tab, text="KONUŞMA ARŞİVİ", padding=12)
         archive_box.pack(fill="both", expand=True, pady=(16, 0))
         search = ttk.Frame(archive_box)
         search.pack(fill="x", pady=(0, 10))
@@ -210,17 +365,17 @@ class RadiaApp:
         self.search_slot = tk.StringVar(value="Tümü")
         self._field(search, "Kanal adı / başlık / ID", self.search_text, 32)
         self._field(search, "Tarih / YYYY-MM-DD (yerel)", self.search_day, 24)
-        self._field(search, "Slot", self.search_slot, 6, ["Tümü", "1", "2"])
+        self._field(search, "Slot", self.search_slot, 6, ["Tümü", "1", "2", "3", "4"])
         ttk.Button(search, text="Ara / yenile", command=self.refresh_archive).pack(
             side="left", padx=10, pady=(16, 0)
         )
         ttk.Button(search, text="▶ Seçili kaydı dinle", command=self.play).pack(
             side="left", pady=(16, 0)
         )
-        ttk.Button(search, text="Sesi kes", command=lambda: winsound.PlaySound(None, 0)).pack(
+        ttk.Button(search, text="Sesi kes", command=playback.stop).pack(
             side="left", padx=8, pady=(16, 0)
         )
-        columns = ("time", "channel", "frequency", "duration", "source", "identity")
+        columns = ("time", "channel", "frequency", "duration", "source", "identity", "slot", "code")
         self.calls = ttk.Treeview(archive_box, columns=columns, show="headings", height=6)
         for key, label, width in zip(
             columns,
@@ -230,35 +385,94 @@ class RadiaApp:
                 "MHz",
                 "Kayıt süresi",
                 "Kaynak",
-                "ID / Grup / Slot",
+                "ID / Grup",
+                "Slot",
+                "CC / NAC / RAN",
             ],
-            [195, 200, 110, 95, 90, 220],
+            [155, 175, 100, 85, 130, 120, 150, 110],
             strict=True,
         ):
             self.calls.heading(key, text=label)
-            self.calls.column(key, width=width)
+            self.calls.column(key, width=width, minwidth=width)
         scrollbar = ttk.Scrollbar(archive_box, orient="vertical", command=self.calls.yview)
-        self.calls.configure(yscrollcommand=scrollbar.set)
+        horizontal = ttk.Scrollbar(archive_box, orient="horizontal", command=self.calls.xview)
+        self.calls.configure(yscrollcommand=scrollbar.set, xscrollcommand=horizontal.set)
+        horizontal.pack(side="bottom", fill="x")
         scrollbar.pack(side="right", fill="y")
         self.calls.pack(fill="both", expand=True)
         self.calls.bind("<Double-1>", lambda event: self.play())
-        footer = ttk.Frame(outer)
+        footer = ttk.Frame(self.archive_tab)
         footer.pack(fill="x", pady=(12, 0), side="bottom", before=archive_box)
         self.count = tk.StringVar(value="")
-        ttk.Label(footer, textvariable=self.count, foreground="#a7bbd4").pack(side="left")
+        ttk.Label(footer, textvariable=self.count, foreground="#526174").pack(side="left")
         ttk.Button(
             footer, text="Kayıt klasörünü aç", command=lambda: os.startfile(str(self.archive.root))
         ).pack(side="right")
         ttk.Label(
-            footer, text="Analog FM'de ID / grup / slot bilgisi yoktur.  ", foreground="#a7bbd4"
+            footer, text="Analog FM'de ID / grup / slot bilgisi yoktur.  ", foreground="#526174"
         ).pack(side="right")
         self.refresh_archive()
+        self.presentation = Presentation(self, outer, header)
         root.after(200, self.poll)
+
+    def toggle_radio(self):
+        if self.fm_panel.winfo_manager():
+            self.fm_panel.pack_forget()
+        else:
+            self.fm_panel.pack(fill="x", before=self.presentation.body)
+
+    def start_radio(self):
+        if self.spectrum.worker.running:
+            messagebox.showerror("FM RADIO", "Önce spektrum ölçümünü durdurun.")
+            return
+        try:
+            if self.receiver.running:
+                raise ValueError(
+                    "Ana telsiz alımı sürüyor. FM RADIO aynı USB alıcıyı kullanamaz; ana alımı durdurun veya ayrı alıcı kullanın."
+                )
+            frequency = round(float(self.fm_frequency.get().replace(",", ".")) * 10) * 100000
+            self.fm_frequency.set(f"{frequency / 1e6:.1f}")
+            self.radio.start(
+                self.project / "vendor/rtl-sdr/package/x64/rtlsdr.dll",
+                frequency,
+                int(self.ppm.get()),
+                float(self.usb_gain.get()),
+                index=self.devices.selected_index(),
+            )
+        except (ValueError, OSError) as exc:
+            messagebox.showerror("FM RADIO", str(exc))
+
+    def load_cards(self):
+        if not hasattr(self, "cards"):
+            return
+        for i, card in enumerate(self.cards):
+            card.load(self.channels[i] if i < len(self.channels) else None)
+
+    def save_cards(self):
+        if self.receiver.running:
+            messagebox.showinfo("Alım açık", "Kanal değişikliği için önce Durdur düğmesine basın.")
+            return False
+        try:
+            channels = [c for card in self.cards if (c := card.value()) is not None]
+            if len({c.name.casefold() for c in channels}) != len(channels):
+                raise ValueError("Kanal adları farklı olmalı.")
+            self.channels = channels
+            self.config_path.write_text(
+                json.dumps([asdict(c) for c in channels], ensure_ascii=False, indent=2), "utf-8"
+            )
+            self.refresh_channels()
+            # Keep empty card positions while editing, and bind telemetry to saved values.
+            for card in self.cards:
+                card.channel = card.value()
+            return True
+        except (ValueError, OSError) as exc:
+            messagebox.showerror("Kanal ayarları", str(exc))
+            return False
 
     def _field(self, parent, label, variable, width, choices=None):
         frame = ttk.Frame(parent)
         frame.pack(side="left", padx=(0, 8))
-        ttk.Label(frame, text=label, foreground="#a7bbd4").pack(anchor="w", pady=(0, 4))
+        ttk.Label(frame, text=label, foreground="#526174").pack(anchor="w", pady=(0, 4))
         widget = (
             ttk.Entry(frame, textvariable=variable, width=width)
             if choices is None
@@ -314,8 +528,17 @@ class RadiaApp:
                 float(self.squelch.get()),
                 mode=self.mode.get(),
                 system=self.system.get().strip(),
-                color_code=int(self.color_code.get()) if self.color_code.get().strip() else None,
+                color_code=int(self.color_code.get())
+                if self.mode.get() != "AUTO" and self.color_code.get().strip()
+                else None,
                 enabled=self.enabled.get(),
+                tone_mode=next(
+                    (c.tone_mode for c in self.channels if c.name == self.name.get().strip()), "CSQ"
+                ),
+                tone_value=next(
+                    (c.tone_value for c in self.channels if c.name == self.name.get().strip()),
+                    "67.0",
+                ),
             )
             found = next(
                 (
@@ -348,9 +571,47 @@ class RadiaApp:
             json.dumps([asdict(c) for c in self.channels], ensure_ascii=False, indent=2), "utf-8"
         )
         self.refresh_channels()
+        self.load_cards()
+
+    def boost_gain(self):
+        try:
+            self.usb_gain.set(f"{min(50, float(self.usb_gain.get()) + 10):g}")
+            self.usb_agc.set("Manuel")
+            self.apply_gain()
+        except ValueError:
+            messagebox.showerror("USB kazancı", "Sayısal bir kazanç girin.")
+
+    def apply_gain(self):
+        try:
+            gain = float(self.usb_gain.get().replace(",", "."))
+            if not math.isfinite(gain) or not -10 <= gain <= 50:
+                raise ValueError("Kazanç −10…50 dB aralığında olmalı.")
+            if self.source.get() != "USB" or self.radio.running:
+                raise ValueError("Bu kontrol USB ana alıcısı içindir. FM RADIO kapalı olmalı.")
+            self.receiver.usb_settings = (gain, self.usb_agc.get() == "Tuner AGC")
+            self.receiver_config_path.write_text(
+                json.dumps({key: var.get() for key, var in self.receiver_fields.items()}, indent=2),
+                "utf-8",
+            )
+            self.gain_status.set(
+                "Kazanç ayarı kaydedildi"
+                if self.receiver.running
+                else "Kaydedildi • Alım başladığında uygulanacak"
+            )
+        except (ValueError, OSError) as exc:
+            messagebox.showerror("USB kazancı", str(exc))
 
     def start(self):
         try:
+            if self.spectrum.worker.running:
+                raise ValueError("Önce spektrum ölçümünü durdurun.")
+            if self.radio.running:
+                raise ValueError(
+                    "Önce FM RADIO dinlemeyi kapatın; USB alıcı radyo tarafından kullanılıyor."
+                )
+            if hasattr(self, "cards"):
+                if not self.save_cards():
+                    return
             ppm = int(self.ppm.get())
             port = int(self.port.get())
             usb_gain = float(self.usb_gain.get())
@@ -373,8 +634,12 @@ class RadiaApp:
                 scan=self.receive_mode.get() == "Tarama",
                 scan_dwell=float(self.scan_dwell.get()),
                 scan_release=float(self.scan_release.get()),
+                usb_agc=self.usb_agc.get() == "Tuner AGC",
+                usb_index=self.devices.selected_index() if self.source.get() == "USB" else 0,
             )
             self.start_button.configure(state="disabled")
+            for card in self.cards:
+                card.set_editable(False)
         except (ValueError, OSError) as exc:
             messagebox.showerror("Alıcı", str(exc))
 
@@ -392,16 +657,28 @@ class RadiaApp:
         self.calls.delete(*self.calls.get_children())
         for r in rows:
             slot_label = (
-                str(r["slot"])
+                str(r["protocol_slot"])
+                if r["protocol_slot"] is not None
+                else str(r["slot"])
                 if r["slot"] is not None
                 else f"{r['decoder_slot']} (çözücü)"
                 if r["decoder_slot"] is not None
+                else "Doğrulanmadı"
+                if r["source"].startswith(("DMR/", "TETRA/", "P25/", "APCO25/", "NXDN/"))
                 else "—"
             )
-            identities = (
-                " / ".join(str(r[k]) if r[k] is not None else "—" for k in ("radio_id", "group_id"))
-                + " / "
-                + slot_label
+            identities = " / ".join(
+                str(r[k]) if r[k] is not None else "—" for k in ("radio_id", "group_id")
+            )
+            code = r["color_code"]
+            code_label = (
+                "—"
+                if code is None
+                else f"NAC {code:03X}"
+                if r["source"].startswith(("APCO25/", "P25/"))
+                else f"RAN {code}"
+                if r["source"].startswith("NXDN/")
+                else f"CC {code}"
             )
             self.calls.insert(
                 "",
@@ -416,6 +693,8 @@ class RadiaApp:
                     f"{r['duration']:.2f} sn",
                     r["source"],
                     identities,
+                    slot_label,
+                    code_label,
                 ),
             )
         if selected and self.calls.exists(selected[0]):
@@ -468,6 +747,12 @@ class RadiaApp:
         refresh()
 
     def play(self):
+        if not is_admin():
+            messagebox.showerror(
+                "Yetki gerekli",
+                f"Kayıt dinlemek için {PRODUCT_NAME} uygulamasını Windows yönetici yetkisiyle açın.",
+            )
+            return
         selected = self.calls.selection()
         if not selected:
             return
@@ -475,42 +760,35 @@ class RadiaApp:
             path = self.archive.audio_path(selected[0])
             with self.archive.connect() as db:
                 call = db.execute("SELECT source FROM calls WHERE id=?", (selected[0],)).fetchone()
-            if call is not None and call["source"] == "DMR/DSD-FME":
-                # Boost listening copies; keep the original decoder recording intact.
-                winsound.PlaySound(None, 0)
-                with wave.open(str(path), "rb") as wav:
-                    params = wav.getparams()
-                    if params.sampwidth != 2:
-                        raise ValueError("DMR dinleme sesi için 16 bit WAV gerekli.")
-                    samples = np.frombuffer(wav.readframes(wav.getnframes()), dtype="<i2")
-                boosted = samples.astype(np.float64) * 2.0
-                # Soft knee above 90% full scale prevents integer clipping.
-                magnitude = np.abs(boosted) / 32768.0
-                limited = np.where(
-                    magnitude <= 0.9,
-                    magnitude,
-                    0.9 + 0.1 * (1.0 - np.exp(-np.maximum(magnitude - 0.9, 0) / 0.1)),
-                )
-                pcm = (np.sign(boosted) * limited * 32767).astype("<i2")
-                path = self.archive.root / "dmr-playback.wav"
-                with wave.open(str(path), "wb") as wav:
-                    wav.setparams(params)
-                    wav.writeframes(pcm.tobytes())
-            winsound.PlaySound(
-                str(path),
-                winsound.SND_FILENAME | winsound.SND_ASYNC,
-            )
-        except (RuntimeError, ValueError, OSError, wave.Error) as exc:
+            playback.play(read_audio(path), boost=bool(call and call["source"] == "DMR/DSD-FME"))
+        except (RuntimeError, ValueError, OSError, wave.Error, sd.PortAudioError) as exc:
             messagebox.showerror("Dinleme", str(exc))
 
     def poll(self):
+        self.map_panel.poll()
+        self.digital_log.poll()
+        if self.tabs.select() == str(self.inbox):
+            try:
+                self.inbox.poll()
+            except (OSError, sqlite3.Error):
+                self.inbox.note.configure(text="Mesaj günlüğü okunamadı; yeniden denenecek.")
         try:
             while True:
                 message = self.receiver.messages.get_nowait()
                 kind = message["kind"]
                 if kind in ("status", "error"):
                     self.status.set(message["text"])
+                elif kind == "tuning":
+                    for card in self.cards:
+                        card.telemetry(None)
+                        if card.channel and card.channel.name in message["names"]:
+                            card.state.set("◌ Alıcı ayarlanıyor…")
+                elif kind == "gain":
+                    self.gain_status.set(message["text"])
                 elif kind == "levels":
+                    by_name = {c["name"]: c for c in message["channels"]}
+                    for card in self.cards:
+                        card.telemetry(by_name.get(card.channel.name) if card.channel else None)
                     self.levels.set(
                         "   |   ".join(
                             f"{c['name']}: {c['level']:.1f} dBFS  {'● KAYIT' if c['active'] else 'Bekliyor'}"
@@ -522,6 +800,11 @@ class RadiaApp:
                         self.last_count = completed
                         self.refresh_archive()
                 elif kind == "stopped":
+                    for card in self.cards:
+                        card.set_editable(True)
+                        card.telemetry(None)
+                        if card.channel:
+                            card.state.set("○ Alım kapalı")
                     self.start_button.configure(state="normal")
                     self.levels.set("Alım kapalı • Etkin kayıt yok")
                     if message["reason"] != "error":
@@ -540,14 +823,27 @@ class RadiaApp:
                     logging.exception("Cannot write diagnostic status")
         except queue.Empty:
             pass
-        if self.closing and not self.receiver.running:
-            winsound.PlaySound(None, 0)
+        try:
+            while True:
+                self.fm_status.set(self.radio.messages.get_nowait())
+        except queue.Empty:
+            pass
+        self.spectrum.poll()
+        if (
+            self.closing
+            and not self.receiver.running
+            and not self.radio.running
+            and not self.spectrum.worker.running
+        ):
+            playback.stop()
             self.root.destroy()
             return
         self.root.after(200, self.poll)
 
     def close(self):
         self.closing = True
+        self.radio.stop()
+        self.spectrum.worker.stop()
         self.status.set("Alıcı kapatılıyor ve kayıtlar tamamlanıyor…")
         self.receiver.stop()
 
@@ -565,6 +861,7 @@ def main():
     )
     root = tk.Tk()
     app = RadiaApp(root, args.project)
+    root.after(100, app.devices.refresh)
     if args.listen:
         root.after(500, app.start)
     root.mainloop()

@@ -4,12 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "biem-radia"
-version = "0.1.0"
-description = "BIEM Radia local analog radio recording workstation"
+version = "0.2.0"
+description = "BIEM Radio Integrated Solution BM-ICC-08, selective squelch and digital voice archive"
 requires-python = ">=3.12"
-dependencies = ["numpy>=2.2", "scipy>=1.15"]
+dependencies = [
+    "numpy>=2.2",
+    "pillow>=11",
+    "scipy>=1.15",
+    "sounddevice>=0.5.6",
+]
 
 [project.scripts]
+biem-icc = "biem_radia.app:main"
 biem-radia = "biem_radia.app:main"
 
 [dependency-groups]
