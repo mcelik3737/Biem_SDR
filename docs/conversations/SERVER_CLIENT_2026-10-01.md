@@ -20,3 +20,15 @@ Ofiste sürekli çalışan bir sunucu programı ve ona bağlanan istemci arayüz
 - Gerçek kullanıcı parolaları, oturumlar, loglar ve RF kayıtları Git'e girmez.
 
 Bu not tarihli gereksinim kaydıdır. Kurulum, sınırlar ve test kanıtları için `docs/SERVER_CLIENT.md` esas alınır. Tam geçmiş konuşmanın bire bir dışa aktarımı olduğu iddia edilmez.
+
+## Aynı gün — Yönetici kanal ayarları / masaüstü USB bildirimi
+
+Kullanıcı: “kanal ayarları admin kullanıcıda çıkmıyor. masaüstü yazılımıda sdr ı görmüyor. bir şeyler ters gitti sanırım”
+
+- İlk web sürümünde olmayan yönetici kanal editörü tamamlandı; kanal kartında Ayarlar ve solda Alıcı / kanal ayarları bulunur.
+- Frekans, mod, CC, analog ton, kayıt eşiği, yakın sinyal kilidi; genel USB/rtl_tcp, kazanç, PPM ve tarama ayarları mevcut masaüstü biçiminde kaydedilir.
+- Standart kullanıcılar bu ayarları göremez/değiştiremez. Alım veya spektrum çalışırken ayar dosyası değiştirilmez. Önceki dosya yedeklenir ve eski tarayıcı oturumunun yeni ayarları ezmesi engellenir.
+- Ayrı klasöre kopyalanan masaüstü başlatıcıları sürücü/veri için aynı mevcut proje köküne yönlendirildi. Eski projenin kaynakları ve sürücü kurulumu korunur.
+- Alım kapalı durumu kartta ayrıca belirtilir; USB kopmasıyla aynı metin kullanılmaz.
+- Kısa gerçek USB testinde cihaz listelendi ve 327.680 I/Q örneği okundu. Ses/kayıt veya uzun süreli USB kararlılığı testi olduğu iddia edilmez.
+- Ayrı temsili tarayıcı verileriyle yönetici ayar kaydı ve kullanıcı erişim sınırı doğrulandı; tüm 238 test ve paket derlemesi geçti. Gerçek kullanıcı parolalarına/ayarlarına müdahale edilmedi.

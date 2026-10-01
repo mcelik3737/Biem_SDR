@@ -27,6 +27,7 @@ from ..sources import RtlLibrary
 from ..spectrum import SpectrumWorker
 from ..storage import Archive
 from ..vector_map import COS39, VectorMap, Viewport, find_package
+from .settings import ReceiverSettings, channel_list
 
 
 def read_object(path: Path) -> dict:
@@ -116,7 +117,12 @@ class RadioRuntime:
         self.updated = 0.0
         self.vector: VectorMap | None = None
         self.channels: list[Channel] = []
-        self.reload_channels()
+        try:
+            self.reload_channels()
+        except ValueError:
+            self.status = (
+                "Hata: Kanal ayarları okunamadı. Yönetici Alıcı ayarları ekranından düzeltmeli."
+            )
 
     @property
     def dll(self) -> Path:
@@ -125,12 +131,7 @@ class RadioRuntime:
     def reload_channels(self):
         path = self.archive.root / "channels.json"
         values = json.loads(path.read_text("utf-8")) if path.exists() else []
-        if not isinstance(values, list) or len(values) > 8:
-            raise ValueError("Kanal ayarları 0–8 kanal içermeli.")
-        channels = [Channel(**item) for item in values]
-        if len({c.name.casefold() for c in channels}) != len(channels):
-            raise ValueError("Kanal adları benzersiz olmalı.")
-        self.channels = channels
+        self.channels = channel_list(values)
 
     def inventory(self) -> list[str]:
         with self.archive.connect() as db:
@@ -240,13 +241,20 @@ class RadioRuntime:
                 "channels": channels,
             }
 
-    def _usb_index(self) -> int:
-        saved = read_object(self.archive.root / "device.json")
+    def usb_devices(self) -> list[dict]:
+        if not self.dll.is_file():
+            raise ValueError(
+                "RTL-SDR sürücü dosyası veri kökünde bulunamadı. Başlatıcıdaki proje yolunu kontrol edin."
+            )
         library = RtlLibrary(self.dll)
         try:
-            items = list(library.inventory())
+            return list(library.inventory())
         finally:
             library.close()
+
+    def _usb_index(self) -> int:
+        saved = read_object(self.archive.root / "device.json")
+        items = self.usb_devices()
         matches = [p for p in items if saved.get("serial") and p["serial"] == saved["serial"]]
         if len(matches) == 1:
             return int(matches[0]["index"])
@@ -257,6 +265,12 @@ class RadioRuntime:
         if match is None:
             raise ValueError("USB alıcı bulunamadı; masaüstü cihaz ayarını kontrol edin.")
         return int(match["index"])
+
+    def _receiver_config(self) -> dict:
+        values = read_object(self.archive.root / "receiver.json")
+        return ReceiverSettings.model_validate(
+            {key: value for key, value in values.items() if key in ReceiverSettings.model_fields}
+        ).model_dump()
 
     def control(self, target: str, action: str, low: float = 420, high: float = 421):
         with self.lock:
@@ -272,7 +286,7 @@ class RadioRuntime:
                 if self.spectrum.running:
                     raise ValueError("Önce spektrum ölçümünü durdurun.")
                 self.reload_channels()
-                cfg = read_object(self.archive.root / "receiver.json")
+                cfg = self._receiver_config()
                 source = cfg.get("source", "USB")
                 self.receiver.start(
                     [c for c in self.channels if c.enabled],
@@ -298,7 +312,7 @@ class RadioRuntime:
                     raise ValueError(
                         "Spektrum için önce SDR alımını durdurun. Röle alımı devam edebilir."
                     )
-                cfg = read_object(self.archive.root / "receiver.json")
+                cfg = self._receiver_config()
                 self.sweep.clear()
                 self.spectrum.start(
                     self.dll,

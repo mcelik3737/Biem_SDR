@@ -522,3 +522,212 @@ def test_background_lifecycle_and_tls_cookie(site, monkeypatch):
         assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=strict" in cookie
         assert client.get("/api/me").status_code == 200
     assert events == ["start", "close"]
+
+
+def test_channel_settings_roundtrip_backup_revision_and_scoped_client(site):
+    client, _, runtime, _ = site
+    csrf = bootstrap(client)
+    add_user(client, csrf)
+    original = (runtime.archive.root / "channels.json").read_bytes()
+    saved = client.get("/api/settings").json()
+    channels = saved["channels"]["value"]
+    channels[0].update(mode="DMR", frequency_hz=424100000, color_code=11)
+    payload = {"revision": saved["channels"]["revision"], "channels": channels}
+    response = write(client, "/api/settings/channels", payload, csrf, "PUT")
+    assert response.status_code == 200, response.text
+    runtime.reload_channels()
+    assert runtime.channels[0].mode == "DMR"
+    assert runtime.channels[0].color_code == 11
+    assert runtime.channels[0].frequency_hz == 424100000
+    backups = list((runtime.archive.root / "server/config-backups").glob("channels-*.json"))
+    assert len(backups) == 1 and backups[0].read_bytes() == original
+    assert write(client, "/api/settings/channels", payload, csrf, "PUT").status_code == 409
+    assert len(list(backups[0].parent.glob("channels-*.json"))) == 1
+    payload["revision"] = response.json()["revision"]
+    channels[0]["name"] = "New channel name"
+    assert write(client, "/api/settings/channels", payload, csrf, "PUT").status_code == 200
+    login(client, "operator")
+    assert client.get("/api/live").json()["channels"] == []  # rename never widens channel grants
+
+
+def test_settings_require_admin_even_for_receiver_controller_and_csrf(site, monkeypatch):
+    client, _, runtime, _ = site
+    for path in ("/api/settings", "/api/settings/devices"):
+        assert client.get(path).status_code == 401
+    csrf = bootstrap(client)
+    config = client.get("/api/settings").json()
+    payloads = {
+        "channels": config["channels"]["value"],
+        "receiver": config["receiver"]["value"],
+        "device": config["device"]["value"],
+    }
+    monkeypatch.setattr(runtime, "usb_devices", lambda: pytest.fail("Unauthorized USB access"))
+    for name, value in payloads.items():
+        body = {"revision": config[name]["revision"], name: value}
+        assert write(client, "/api/settings/" + name, body, method="PUT").status_code == 403
+    add_user(client, csrf, permissions=["receiver.control", "live.view"])
+    csrf = login(client, "operator")
+    for path in ("/api/settings", "/api/settings/devices"):
+        assert client.get(path).status_code == 403
+    for name, value in payloads.items():
+        body = {"revision": config[name]["revision"], name: value}
+        assert write(client, "/api/settings/" + name, body, csrf, "PUT").status_code == 403
+
+
+@pytest.mark.parametrize("worker", ["receiver", "spectrum"])
+def test_settings_wait_for_active_or_finalizing_sdr(site, worker):
+    client, _, runtime, _ = site
+    csrf = bootstrap(client)
+    config = client.get("/api/settings").json()
+
+    class Finalizing:
+        def is_alive(self):
+            return True
+
+    getattr(runtime, worker).thread = Finalizing()
+    assert client.get("/api/settings").json()["busy"]
+    for name in ("channels", "receiver", "device"):
+        body = {"revision": config[name]["revision"], name: config[name]["value"]}
+        response = write(client, "/api/settings/" + name, body, csrf, "PUT")
+        assert response.status_code == 409
+    assert not (runtime.archive.root / "server/config-backups").exists()
+    getattr(runtime, worker).thread = None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"mode": "DMR", "color_code": 16},
+        {"mode": "TETRA", "spacing_hz": 12500},
+        {"mode": "NFM", "tone_mode": "CTCSS", "tone_value": "123456"},
+        {"frequency_hz": 0},
+        {"squelch_db": 10},
+        {"name": "Hytera • Slot 1"},
+        {"name": "B"},
+    ],
+)
+def test_invalid_channel_settings_never_replace_working_file(site, change):
+    client, _, runtime, _ = site
+    csrf = bootstrap(client)
+    original = (runtime.archive.root / "channels.json").read_bytes()
+    config = client.get("/api/settings").json()["channels"]
+    config["value"][0].update(change)
+    response = write(
+        client,
+        "/api/settings/channels",
+        {"revision": config["revision"], "channels": config["value"]},
+        csrf,
+        "PUT",
+    )
+    assert response.status_code in (400, 422)
+    assert (runtime.archive.root / "channels.json").read_bytes() == original
+    assert runtime.channels[0].name == "A"
+
+
+def test_rf_settings_compatible_with_desktop_and_device_serial_follows_usb_order(site, monkeypatch):
+    client, _, runtime, _ = site
+    csrf = bootstrap(client)
+    config = client.get("/api/settings").json()
+    receiver = config["receiver"]["value"]
+    receiver.update(ppm=15, usb_gain=29, usb_agc="Tuner AGC", receive_mode="Tarama")
+    payload = {"revision": config["receiver"]["revision"], "receiver": receiver}
+    assert write(client, "/api/settings/receiver", payload, csrf, "PUT").status_code == 200
+    assert json.loads((runtime.archive.root / "receiver.json").read_text("utf-8"))["ppm"] == 15
+    receiver["ppm"] = 201
+    assert write(client, "/api/settings/receiver", payload, csrf, "PUT").status_code == 422
+    devices = [{"index": 1, "serial": "sdr-test", "name": "Test-only RTL"}]
+    monkeypatch.setattr(runtime, "usb_devices", lambda: devices)
+    assert client.get("/api/settings/devices").json()["devices"] == devices
+    payload = {
+        "revision": config["device"]["revision"],
+        "device": {"index": 0, "serial": "sdr-test"},
+    }
+    assert write(client, "/api/settings/device", payload, csrf, "PUT").status_code == 409
+    payload["device"]["index"] = 1
+    assert write(client, "/api/settings/device", payload, csrf, "PUT").status_code == 200
+    devices[0]["index"] = 2
+    assert runtime._usb_index() == 2
+    devices.clear()
+    with pytest.raises(ValueError, match="bağlı değil"):
+        runtime._usb_index()
+
+
+def test_atomic_settings_replace_failure_preserves_original(site, monkeypatch):
+    from biem_radia.server import settings
+
+    _, _, runtime, _ = site
+    root = runtime.archive.root
+    original = (root / "channels.json").read_bytes()
+    _, revision = settings.snapshot(root, "channels", [])
+
+    def disk_error(*_):
+        raise OSError("read-only disk")
+
+    monkeypatch.setattr(Path, "replace", disk_error)
+    with pytest.raises(OSError):
+        settings.save(root, "channels", revision, [])
+    assert (root / "channels.json").read_bytes() == original
+    assert not list(root.glob("*.part"))
+
+
+@pytest.mark.parametrize(
+    "resource,raw",
+    [
+        ("channels", b"broken"),
+        ("channels", b"[null]"),
+        ("receiver", b"[]"),
+        ("receiver", b"broken"),
+        ("device", b"null"),
+    ],
+)
+def test_invalid_settings_are_repairable_without_silent_overwrite(site, monkeypatch, resource, raw):
+    client, _, runtime, _ = site
+    csrf = bootstrap(client)
+    path = runtime.archive.root / (resource + ".json")
+    path.write_bytes(raw)
+    if resource == "channels":
+        # Even broken channels must allow server construction and admin repair.
+        recovered = RadioRuntime(runtime.project)
+        assert recovered.channels == []
+        assert recovered.status.startswith("Hata:")
+        with pytest.raises(ValueError):
+            recovered.control("receiver", "start")
+        assert not recovered.receiver.running
+    config = client.get("/api/settings").json()[resource]
+    assert "error" in config
+    assert path.read_bytes() == raw
+    monkeypatch.setattr(runtime, "usb_devices", lambda: [{"index": 0, "serial": ""}])
+    result = write(
+        client,
+        "/api/settings/" + resource,
+        {"revision": config["revision"], resource: config["value"]},
+        csrf,
+        "PUT",
+    )
+    assert result.status_code == 200, result.text
+    assert "error" not in client.get("/api/settings").json()[resource]
+    assert (
+        next(
+            (runtime.archive.root / "server/config-backups").glob(resource + "-*.json")
+        ).read_bytes()
+        == raw
+    )
+
+
+def test_invalid_rf_values_do_not_abort_web_startup_or_open_hardware(site, monkeypatch):
+    _, accounts, runtime, _ = site
+    accounts.bootstrap("admin", PASSWORD)
+    (runtime.archive.root / "receiver.json").write_text('{"port": null}', "utf-8")
+    (accounts.path.parent / "startup.json").write_text('{"receiver": true}', "utf-8")
+    monkeypatch.setattr(runtime, "start", lambda: None)
+
+    def no_receiver_start(*_args, **_kwargs):
+        pytest.fail("Invalid configuration must not reach hardware")
+
+    monkeypatch.setattr(runtime.receiver, "start", no_receiver_start)
+    monkeypatch.setattr(runtime, "usb_devices", no_receiver_start)
+    app = create_app(runtime, accounts, origin=ORIGIN)
+    with TestClient(app, base_url=ORIGIN) as client:
+        login(client)
+        assert "error" in client.get("/api/settings").json()["receiver"]
+        assert not runtime.receiver.running

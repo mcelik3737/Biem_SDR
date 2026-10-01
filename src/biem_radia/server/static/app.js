@@ -19,6 +19,7 @@ function setSession(value) {
   invalidateView();
   session = value;
   adminData = null;
+  settingsFocus = null;
   editId = null;
   liveStates = [];
   lastLocation = null;
@@ -46,6 +47,7 @@ const titles = {
   repeater: "Röle izleme",
   spectrum: "Spektrum",
   admin: "Kullanıcılar ve yetkiler",
+  settings: "Alıcı / kanal ayarları",
 };
 const navSpec = [
   ["live", "◉", "live.view"],
@@ -54,6 +56,7 @@ const navSpec = [
   ["map", "⌖", "map.view"],
   ["repeater", "⇄", "repeater.view"],
   ["spectrum", "∿", "spectrum.view"],
+  ["settings", "⚙", "admin"],
   ["admin", "⚙", "admin"],
 ];
 const can = (p) =>
@@ -417,6 +420,8 @@ async function navigate(next) {
         el("span", { class: "muted" }, "SDR alımı"),
         ...targetControls("receiver"),
       );
+    if (session.user.admin)
+      bar.append(button("⚙ Kanal ayarları", () => navigate("settings")));
     m.append(
       bar,
       el("div", { id: "live-status", class: "muted" }),
@@ -451,6 +456,9 @@ async function navigate(next) {
     );
   } else if (next === "admin") {
     m.append(el("div", { id: "content" }));
+  } else if (next === "settings") {
+    m.append(el("div", { id: "content" }));
+    await loadSettings();
   } else if (next === "map") {
     mapCenter = { lon: 35, lat: 39, zoom: 6 };
     m.append(
@@ -638,7 +646,11 @@ function renderLive(data) {
       gray = !c.connected,
       noaudio = c.connected && signal && !isAudio;
     const label = gray
-      ? "Bağlı değil"
+      ? !c.enabled
+        ? "Kanal devre dışı"
+        : c.frequency_hz && !data.running
+          ? "Alım kapalı"
+          : "Bağlı değil"
       : noaudio
         ? "Sinyal var · ses yok"
         : isAudio
@@ -727,6 +739,13 @@ function renderLive(data) {
       );
     if (can("messages.view"))
       actions.append(button("✉ Mesajlar", () => navigate("messages")));
+    if (session.user.admin && c.frequency_hz)
+      actions.append(
+        button("⚙ Ayarlar", () => {
+          settingsFocus = c.name;
+          navigate("settings");
+        }),
+      );
     card.append(actions);
     root.append(card);
   }

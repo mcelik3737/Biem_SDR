@@ -6,7 +6,10 @@ $previousDiagnostic = $env:BIEM_DMR_DIAGNOSTIC
 try {
     # Existing backend limits raw discriminator capture to 120 seconds per session.
     $env:BIEM_DMR_DIAGNOSTIC = '1'
-    $diagnosticArgs = '-m biem_radia.app --project "' + $PSScriptRoot + '"'
+    $diagnosticProject = $PSScriptRoot
+    if (Test-Path -LiteralPath 'D:\Projects\Biem\_SDR\data\channels.json') { $diagnosticProject = 'D:\Projects\Biem\_SDR' }
+    $env:PYTHONPATH = Join-Path $PSScriptRoot 'src'
+    $diagnosticArgs = '-m biem_radia.app --project "' + $diagnosticProject + '"'
     if ($Listen) { $diagnosticArgs += ' --listen' }
     Start-Process -FilePath $diagnosticPython -ArgumentList $diagnosticArgs -WorkingDirectory $PSScriptRoot -WindowStyle Hidden
 } finally {

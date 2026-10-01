@@ -10,6 +10,7 @@ import sqlite3
 import threading
 import time
 from contextlib import asynccontextmanager, closing
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -23,6 +24,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..hytera_metrics import METRICS, measurement_cell
 from ..locations import coordinates
 from ..protection import read_audio
+from ..tones import CTCSS, DCS
+from . import settings
 from .auth import DEPENDENCIES, PERMISSIONS, Accounts, AuthError, Principal
 from .runtime import RadioRuntime, finite_json, read_object
 
@@ -185,7 +188,7 @@ def create_app(
 
     @app.get("/assets/{name}")
     def static(name: str):
-        if name not in ("app.js", "style.css", "logo.png"):
+        if name not in ("app.js", "settings.js", "style.css", "logo.png"):
             raise HTTPException(404)
         return FileResponse(ASSETS / name)
 
@@ -428,6 +431,93 @@ def create_app(
             "startup": Startup(**read_object(settings_path)).model_dump(),
             "history": accounts.history(),
         }
+
+    def stopped_settings():
+        if runtime.receiver.running or runtime.spectrum.running:
+            raise AuthError(
+                "Ayarları kaydetmeden önce SDR alımını ve spektrumu durdurun; kapanışın bitmesini bekleyin.",
+                409,
+            )
+
+    @app.get("/api/settings")
+    def get_settings(request: Request):
+        user_for(request, admin=True)
+        with runtime.lock:
+            resources = {
+                name: settings.editable(runtime.archive.root, name)
+                for name in ("channels", "receiver", "device")
+            }
+            return {
+                **resources,
+                "busy": runtime.receiver.running or runtime.spectrum.running,
+                "ctcss": CTCSS,
+                "dcs": DCS,
+            }
+
+    @app.get("/api/settings/devices")
+    def get_devices(request: Request):
+        user_for(request, admin=True)
+        with runtime.lock:
+            try:
+                return {"devices": runtime.usb_devices()}
+            except (ValueError, OSError, RuntimeError) as exc:
+                raise AuthError(str(exc), 409) from exc
+
+    @app.put("/api/settings/channels")
+    def put_channels(form: settings.ChannelsUpdate, request: Request):
+        actor = user_for(request, admin=True)
+        with runtime.lock:
+            stopped_settings()
+            try:
+                channels = [item.channel() for item in form.channels]
+                if len({c.name.casefold() for c in channels}) != len(channels):
+                    raise ValueError("Kanal adları benzersiz olmalı.")
+            except ValueError as exc:
+                raise AuthError(str(exc)) from exc
+            revision = settings.save(
+                runtime.archive.root, "channels", form.revision, [asdict(c) for c in channels]
+            )
+            runtime.channels = channels
+            runtime.levels.clear()
+        accounts.audit(actor.username, "Kanal ayarları kaydedildi")
+        return {"revision": revision}
+
+    @app.put("/api/settings/receiver")
+    def put_receiver(form: settings.ReceiverUpdate, request: Request):
+        actor = user_for(request, admin=True)
+        with runtime.lock:
+            stopped_settings()
+            try:
+                previous = read_object(runtime.archive.root / "receiver.json")
+            except ValueError:
+                previous = {}
+            revision = settings.save(
+                runtime.archive.root,
+                "receiver",
+                form.revision,
+                {**previous, **form.receiver.model_dump()},
+            )
+        accounts.audit(actor.username, "Alıcı ayarları kaydedildi")
+        return {"revision": revision}
+
+    @app.put("/api/settings/device")
+    def put_device(form: settings.DeviceUpdate, request: Request):
+        actor = user_for(request, admin=True)
+        with runtime.lock:
+            stopped_settings()
+            try:
+                items = runtime.usb_devices()
+            except (ValueError, OSError, RuntimeError) as exc:
+                raise AuthError(str(exc), 409) from exc
+            if not any(
+                p["index"] == form.device.index and p["serial"] == form.device.serial for p in items
+            ):
+                raise AuthError("Seçili USB cihaz artık listede yok; cihazları yenileyin.", 409)
+            revision = settings.save(
+                runtime.archive.root, "device", form.revision, form.device.model_dump()
+            )
+        accounts.audit(actor.username, "USB alıcı seçildi")
+        return {"revision": revision}
 
     def save_user(form: UserForm, request: Request, user_id: int | None = None):
         actor = user_for(request, admin=True)
