@@ -10,6 +10,7 @@ vendor/
 external/
 *.egg-info/
 *.mbtiles
+*_PLAN.md
 tools/offline-map/tiles/
 tools/offline-map/download-state.json
 tools/offline-map/manifest.json

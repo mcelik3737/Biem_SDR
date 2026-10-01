@@ -1,0 +1,84 @@
+# BIEM-ICC-SERVER / tarayıcı istemcisi
+
+Tarih: 2026-10-01. Yeni kod ayrı `codex/server-client` dalında ve bu bilgisayarda `D:\Projects\Biem\ICC_Server` klasöründedir. Önceki çalışan `D:\Projects\Biem\_SDR` kaynakları değiştirilmez.
+
+## Kullanım
+
+1. Önce eski masaüstü uygulamasında alımı durdurun ve uygulamayı kapatın. SDR# aynı USB alıcıyı kullanmamalı. Eski uygulama ile sunucuyu aynı alıcı/arşiv üzerinde birlikte çalıştırmayın.
+2. Yeni klasörde `Start-BIEM-ICC-SERVER.cmd` dosyasını açın. Başlatıcı bu bilgisayardaki eski projenin `data` ve `vendor` klasörlerini kullanır; kayıtları veya haritaları kopyalamaz/silmez. Başka kurulumda `Start-BIEM-ICC-SERVER.ps1 -Project 'D:\Biem'` ile veri kökünü açıkça seçin.
+3. İlk çalıştırmada sunucunun kendi tarayıcısında **Yöneticiyi tanımlayın** ekranı açılır. Kullanıcı adını ve en az 12 karakterlik şifreyi kendiniz belirleyin. Hazır/default şifre yoktur. Tek kullanımlık kurulum anahtarı URL'nin sunucuya gönderilmeyen fragment bölümünde taşınır ve sayfa açılınca adres çubuğundan kaldırılır. Kurulum ekranını kaybettiyseniz, ilk hesap henüz oluşturulmamışken sunucuyu yeniden başlatın.
+4. Yönetici hesabıyla **Kullanıcılar ve yetkiler** ekranına girin. Kullanıcı adı/şifre girin; hesabı etkin bırakın; ekranları ve görebileceği kanalları işaretleyin. **Kullanıcıyı oluştur** düğmesine basın.
+5. Canlı izleme ekranındaki **Başlat**, mevcut kaydedilmiş SDR ayarlarıyla alımı başlatır. **Röle izleme** içindeki başlat düğmesi mevcut Hytera profilini kullanır. Ses çözümü ve kayıtlar sunucuda yapılır. **Dinle** tarayıcıdan canlı ses verir; birden fazla çözücü ses akışı varsa akışı seçebilirsiniz. Fiziksel slot bilinmiyorsa tahmin edilmez.
+6. **Sunucu başlangıcı** bölümünde SDR, Hytera ve SNMP için otomatik başlangıcı seçebilirsiniz. Bunlar sunucu uygulamasının bir sonraki açılışında uygulanır. Tarayıcıdan çıkış yapmak veya sekmeyi kapatmak alımı durdurmaz.
+
+Yerel adres: `http://127.0.0.1:8765`. Bu adres diğer bilgisayarlardan erişilemez.
+
+Sunucuyu kapatmak için konsolda `Ctrl+C` kullanın ve kapanışın bitmesini bekleyin. Birden fazla dijital kanalın son dosyalarını tamamlamak zaman alabilir. Sunucu, çözücüler kapanmadan veri klasörü kilidini bırakmaz. Görev Yöneticisi ile zorla sonlandırmayın. Sunucu konsolunu/Windows oturumunu kapatmak tarayıcı sekmesini kapatmakla aynı şey değildir.
+
+## İki arayüz, tek veri kaynağı
+
+- **Yönetici:** Tüm kanallar, ekranlar, alım kontrolü, kullanıcı/yetki yönetimi ve işlem günlüğü.
+- **İstemci kullanıcı:** Yalnızca yönetici tarafından işaretlenen ekran ve kanallar. Boş kanal listesi hiçbir kanal demektir. “Tüm mevcut ve gelecekteki kanallar” ayrı bir seçimdir.
+
+| Yetki | Sonuç |
+| --- | --- |
+| Canlı kanalları gör | İzinli kanalların RF/ses ve çözüm bilgileri |
+| Canlı sesi dinle | İzinli kanalların çözülen sesini tarayıcıda dinleme |
+| Kayıt arşivini gör | İzinli kanalların kayıt satırları ve ID/grup/slot/CC bilgileri |
+| Kayıtları dinle | Arşiv görme yetkisine ek olarak sesin sunucudan alınması |
+| Gelen mesajları gör | İzinli kanallardan mesajlar; çözülmemiş ham veri ayrıca etiketlenir |
+| Harita ve konumları gör | Yerel çevrimdışı yol haritası ve izinli kanallardan son konum |
+| Röle durumunu gör | Tüm rölenin SNMP ölçümleri ve güncel iki-slot RSSI sorgusu |
+| Spektrumu gör | Tüm ölçüm bandının spektrumu; kanal filtresinden bağımsızdır |
+| Spektrum ölçümünü yönet | Ölçüm başlatma/durdurma; SDR canlı alımıyla aynı anda açılmaz |
+| Alımı başlat / durdur | Tüm SDR veya Hytera alımını etkileyen işletme yetkisi |
+
+Dinleme için ilgili görme yetkisi gerekir; arayüz bağımlı kutuyu birlikte seçer, API de bunu kontrol eder. Kullanıcı hesabını kapatma, şifre veya yetki değişikliği bütün oturumlarını iptal eder. Son etkin yönetici kapatılamaz veya kullanıcıya dönüştürülemez. Kullanıcı silme yerine hesabı devre dışı bırakma vardır; işlem geçmişi korunur.
+
+## Ofis ağından bağlantı
+
+Başka PC/tabletler aynı sunucunun **HTTPS** adresini açar. İstemcide Python/SDR sürücüsü gerekmez. Sunucu ilk kurulumu tamamlandıktan sonra, ofisin güvenilen TLS sertifikası ve PEM özel anahtarı ile örnek:
+
+```powershell
+.\Start-BIEM-ICC-SERVER.ps1 `
+  -Project 'D:\Projects\Biem\_SDR' `
+  -ListenAddress '0.0.0.0' -Port 8765 `
+  -Origin 'https://biem-server.ofis.local:8765' `
+  -Certificate 'D:\BiemKeys\server.crt' `
+  -PrivateKey 'D:\BiemKeys\server.key'
+```
+
+Örnek alan adı yereldir, gerçek kurulum adresi değildir. İstemcilerde DNS/hosts çözümü ve sertifika güveni bu adla eşleşmeli. Windows güvenlik duvarında yalnız gerekli ofis alt ağına TCP 8765 erişimi verilmeli. Sertifika/anahtar ve güvenlik duvarı değişiklikleri bu geliştirmede otomatik yapılmadı. Sunucu düz HTTP ile LAN'a açılmayı reddeder. `Origin` tarayıcıda kullanılan adresle tam eşleşmelidir. Ters vekil başlıklarına güvenilmez; bu ilk sürüm Uvicorn'un doğrudan TLS bağlantısını kullanır. İnternete yönlendirme/port açma yapılmadı.
+
+## Veriler ve güvenlik
+
+- `data/server/accounts.sqlite3`: Argon2id şifre özetleri, açık yetkiler, kanal izinleri, hashlenmiş oturum belirteçleri, giriş denemeleri ve yönetim/dinleme olayları.
+- `data/server/startup.json`: Sunucu açılışında başlatılacak alımlar.
+- `data/server/server.log`: Başlangıç ve çalışma hataları.
+- Mevcut `data/radia.sqlite3`, kayıt dosyaları, mesaj indeksi, konumlar ve harita paketleri kullanılır. Bunlar HTTP statik dizini olarak paylaşılmaz. Ses için önce ekran ve kanal yetkisi doğrulanır; dosya yolu istemciye verilmez.
+- Çerez: HttpOnly, SameSite=Strict; HTTPS modunda Secure. Oturum üst sınırı 8 saat, etkinlik olmadan 30 dakika. İsteklerde güncel hesap durumu kontrol edilir. Yazma işlemleri aynı origin + CSRF doğrulaması gerektirir. Giriş denemeleri sınırlandırılır.
+- Eski DPAPI kayıtlarını okuyabilmek için sunucu, kayıtları oluşturan **aynı Windows hesabıyla** çalışmalıdır. Web yöneticiliği Windows yönetici yetkisi değildir. Mevcut spektrum sürücüsü Windows yönetici yetkisi istediği için, spektrum kullanılacaksa başlatıcı da bu yetkiyle çalıştırılmalıdır.
+- Dinleme izni verilmiş ses istemciye aktarılır. Tarayıcıya ulaşan sesi kopyalamayı veya yeniden kaydetmeyi mutlak biçimde engelleme iddiası yoktur.
+- Sunucu kullanıcı verileri ve test ortamları Git'e alınmaz. Anahtarlar, gerçek şifreler, kayıtlar ve haritalar yedek depoya gönderilmez.
+
+## İlk sürüm sınırları
+
+Bu, çalışan sunucu/istemci temelidir; Windows hizmet kurulum paketi, otomatik yeniden başlatan servis yöneticisi ve uzun süreli yük/saha kabulü henüz yoktur. Şu an Python sunucu sürecinin ofis bilgisayarında açık kalması gerekir. Uvicorn tek süreç/tek worker çalışmalıdır; ikinci sunucunun aynı veri klasörünü açması engellenir. Eski masaüstü uygulaması bu yeni kilidi tanımadığından, onu ayrıca kapatmak gerekir.
+
+Kanal/frekans/RF ayarlarının düzenlenmesi mevcut masaüstü yapılandırmasından yapılır; yeni web ekranında ikinci bir RF ayar editörü eklenmedi. Sunucuyu durdurup masaüstünde kaydedin, masaüstünü kapatıp sunucuyu yeniden başlatın. Mevcut SDR/DMR/TETRA demodülasyon kodu değiştirilmedi.
+
+Web haritasında mevcut çevrimdışı **sokak** paketi kullanılır; masaüstünün uydu katmanı, röle GNSS ikonları ve tüm ayrıntılı harita kontrolleri bu web sürümüne henüz taşınmadı. Masaüstündeki özellikler korunur. GNSS koordinatı gelmeden röle için konum uydurulmaz.
+
+Kayıt/mesaj araması sayfa başına 100 sonuç verir; önceki/sonraki düğmeleriyle eski sayfalara geçilebilir. RF/CC/slot gibi ölçülmeyen bilgiler boş gösterilir. Yeni canlı ses aktarımı kısa ve sınırlı tamponla çalışır; gecikmiş ağda eski sesler biriktirilmez. Kesintisiz endüstriyel kayıt/SLA veya 8 kanal performans garantisi değildir.
+
+## Doğrulama
+
+2026-10-01: `Check-Radia.ps1` başarılı: Ruff, biçim kontrolü, ty, basedpyright ve **219 test** geçti. `python -m uv build` kaynak paketi ve wheel üretti. JavaScript sözdizimi `node --check` ile doğrulandı. Mevcut veri kökündeki çevrimdışı Türkiye sokak paketi sunucu çizicisiyle açılıp görsel olarak kontrol edildi; alıcı başlatılmadı. Önceki çalışma klasörünün Git durumunda değişiklik yok.
+
+Donanımsız testlerde gerçek SQLite/Argon2/API kullanılır. Oturum, sayfa/kanal erişimi, doğrudan ses URL'si, şifre/değer sızıntısı, CSRF, hesap kapatma, son yönetici, çerezler, eşzamanlı sunucu kilidi, yavaş kayıt kapanışı, ses akışlarını ayırma ve başlatma hatasında temizlik test edilir. Testler SDR, ağ rölesi veya hoparlör açmaz.
+
+Tam paket Git kontrolünde eski Tk testlerinde aralıklı Tcl dosya açma hataları görüldü. Dosyalar diskte mevcuttu; tekil testler geçti. [Pytest'in Python düzeyinde çıktı yakalaması](https://pytest.org/en/stable/how-to/capture-stdout-stderr.html) (`--capture=sys`) ile tüm 219 test geçti. Bu mod, yerel dosya tanıtıcılarını yeniden yönlendirmediği için test yapılandırmasına eklendi. Test veya doğrulama atlanmadı; üretim alıcısına müdahale edilmedi.
+
+Tarayıcıda ayrı ve temsili test verileriyle ilk yönetici kurulumu, hesap oluşturma, bağımlı izin kutuları, oturum değiştirme, yalnız bir kanalın gösterilmesi ve açık/koyu görünüm kontrol edildi. Gerçek ofis ağından çoklu istemci, gerçek RF canlı ses ve uzun çalışma testi ayrıca yapılmalıdır.
+
+Teknik dayanaklar: [FastAPI güvenlik belgeleri](https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/), [Argon2-cffi](https://argon2-cffi.readthedocs.io/en/stable/howto.html), [OWASP oturum yönetimi](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html). Bu kaynaklar uygulama ayrıntıları için kullanıldı; kullanıcı gereksiniminin yerine geçmez.

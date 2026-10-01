@@ -1,5 +1,7 @@
 # BİEM Radio Integrated Solution — BM-ICC-08
 
+**1 Ekim 2026 — BIEM-ICC-SERVER:** Bu dal, mevcut masaüstünü koruyarak şifreli yönetici/kullanıcı girişi, ekran ve kanal bazlı yetkilendirme, merkezi alım ve tarayıcı istemcileri ekler. Yeni başlatıcı `Start-BIEM-ICC-SERVER.cmd`. [Sunucu kurulum ve kullanım kılavuzu](docs/SERVER_CLIENT.md). Aşağıdaki masaüstü talimatları eski uygulama için geçerlidir.
+
 Güncel ürün adı budur. Eski `biem_radia` paket adı, `.radia` kayıt biçimi ve mevcut başlatıcılar geriye uyumluluk için korunur. Yeni başlatıcı: `Start-BM-ICC-08.cmd`; yönetici: `Start-BM-ICC-08-Admin.cmd`. Model adı kapasite doğrulaması değildir.
 
 Windows üzerinde RTL-SDR ile analog FM ve DMR alımı, konuşma kaydı ve yerel ses arşivi. Analog ses ve gerçek RF'den çözülen DMR sesinin anlaşılırlığı kullanıcı tarafından doğrulandı. Saha kabulü tamamlanmış kesintisiz kayıt sistemi değildir.

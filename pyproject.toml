@@ -8,6 +8,9 @@ version = "0.2.0"
 description = "BIEM Radio Integrated Solution BM-ICC-08, selective squelch and digital voice archive"
 requires-python = ">=3.12"
 dependencies = [
+    "argon2-cffi>=25.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
     "mapbox-vector-tile>=2.2.0",
     "numpy>=2.2",
     "pillow>=11",
@@ -18,6 +21,7 @@ dependencies = [
 [project.scripts]
 biem-icc = "biem_radia.app:main"
 biem-radia = "biem_radia.app:main"
+biem-icc-server = "biem_radia.server.__main__:main"
 
 [dependency-groups]
 dev = [
@@ -28,6 +32,7 @@ dev = [
     "basedpyright",
     "pre-commit",
     "uv>=0.12.13",
+    "httpx2>=2.13.1",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -37,6 +42,8 @@ packages = ["src/biem_radia"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 filterwarnings = ["error"]
+# Preserve native Tcl/Tk file handles while capturing Python test output.
+addopts = "--capture=sys"
 
 [tool.ruff]
 line-length = 100
